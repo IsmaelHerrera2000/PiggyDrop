@@ -62,7 +62,12 @@ export type Database = {
 }
 
 // Convenience types
-export type Goal = Database['public']['Tables']['goals']['Row']
+export type GoalRow = Database['public']['Tables']['goals']['Row']
 export type GoalInsert = Database['public']['Tables']['goals']['Insert']
 export type Deposit = Database['public']['Tables']['deposits']['Row']
 export type DepositInsert = Database['public']['Tables']['deposits']['Insert']
+
+// Goal con depósitos opcionales
+export type Goal = GoalRow & {
+  deposits?: Deposit[]
+}
