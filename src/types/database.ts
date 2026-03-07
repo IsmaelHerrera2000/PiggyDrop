@@ -18,7 +18,7 @@ export type Database = {
         }
         Insert: {
           id?: string
-          user_id: string
+          user_id?: string
           name: string
           emoji?: string
           color?: string
