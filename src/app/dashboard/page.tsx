@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       fontFamily: "'DM Sans', sans-serif",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
         ::-webkit-scrollbar { width: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 100px; }
@@ -46,7 +46,7 @@ export default async function DashboardPage() {
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px',
           }}>🐷</div>
           <span style={{
-            fontFamily: "'Syne', sans-serif", fontWeight: '900',
+            fontFamily: "'Nunito', sans-serif", fontWeight: '900',
             fontSize: '18px', color: '#f0f0f5',
           }}>PiggyDrop</span>
         </div>

@@ -63,7 +63,7 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void })
           justifyContent: 'center', fontSize: '24px', border: `1px solid ${goal.color}30`,
         }}>{goal.emoji}</div>
         <div>
-          <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '700', fontSize: '16px', color: '#f0f0f5' }}>
+          <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px', color: '#f0f0f5' }}>
             {goal.name}
           </div>
           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
@@ -76,12 +76,12 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void })
           <CircularProgress percentage={percentage} color={goal.color} size={72} strokeWidth={7}/>
           <div style={{
             position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '14px', color: goal.color,
+            fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '14px', color: goal.color,
           }}>{percentage}%</div>
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5' }}>
+            <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5' }}>
               {goal.currency}{goal.saved_amount.toLocaleString()}
             </span>
             <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', alignSelf: 'flex-end', marginBottom: '2px' }}>
@@ -128,7 +128,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
             background: goal.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px',
           }}>{goal.emoji}</div>
           <div>
-            <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '700', fontSize: '18px', color: '#f0f0f5' }}>Añadir ahorro</div>
+            <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', color: '#f0f0f5' }}>Añadir ahorro</div>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{goal.name}</div>
           </div>
         </div>
@@ -142,7 +142,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
               width: '100%', background: 'rgba(255,255,255,0.05)',
               border: `1px solid ${amount ? goal.color + '60' : 'rgba(255,255,255,0.1)'}`,
               borderRadius: '12px', padding: '16px', color: '#f0f0f5',
-              fontSize: '20px', fontFamily: "'Syne', sans-serif", fontWeight: '800',
+              fontSize: '20px', fontFamily: "'Nunito', sans-serif", fontWeight: '800',
               outline: 'none', boxSizing: 'border-box' as const,
             }}/>
         </div>
@@ -172,7 +172,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
               flex: 2, padding: '14px', borderRadius: '12px',
               background: `linear-gradient(135deg, ${goal.color}, ${goal.color}cc)`,
               border: 'none', color: '#fff', fontSize: '14px',
-              fontFamily: "'Syne', sans-serif", fontWeight: '800',
+              fontFamily: "'Nunito', sans-serif", fontWeight: '800',
               cursor: 'pointer', opacity: isPending ? 0.7 : 1,
             }}>
             {isPending ? '...' : '💰 Añadir ahorro'}
@@ -209,7 +209,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
         animation: 'modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1)',
         maxHeight: '90vh', overflowY: 'auto' as const,
       }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>
+        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>
           Nueva meta de ahorro ✨
         </div>
         <div style={{ marginBottom: '16px' }}>
@@ -285,7 +285,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
               flex: 2, padding: '14px', borderRadius: '12px',
               background: `linear-gradient(135deg, ${color}, ${color}cc)`,
               border: 'none', color: '#fff', fontSize: '14px',
-              fontFamily: "'Syne', sans-serif", fontWeight: '800',
+              fontFamily: "'Nunito', sans-serif", fontWeight: '800',
               cursor: 'pointer', opacity: isPending ? 0.7 : 1,
             }}>
             {isPending ? 'Creando...' : '🎯 Crear meta'}
@@ -366,7 +366,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               borderRadius: '24px', padding: '32px', textAlign: 'center', marginBottom: '16px',
             }}>
               <div style={{ fontSize: '52px', marginBottom: '12px' }}>{selectedGoal.emoji}</div>
-              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '24px', color: '#f0f0f5', marginBottom: '4px' }}>
+              <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '24px', color: '#f0f0f5', marginBottom: '4px' }}>
                 {selectedGoal.name}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', marginBottom: '28px' }}>
@@ -381,7 +381,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   color={selectedGoal.color} size={160} strokeWidth={14}
                 />
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '900', fontSize: '36px', color: selectedGoal.color }}>
+                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '36px', color: selectedGoal.color }}>
                     {Math.min(100, Math.round((selectedGoal.saved_amount / selectedGoal.target_price) * 100))}%
                   </div>
                   <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: '600' }}>completado</div>
@@ -393,7 +393,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   { label: 'objetivo', value: `€${selectedGoal.target_price.toLocaleString()}`, color: 'rgba(255,255,255,0.5)' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '22px', color: s.color }}>{s.value}</div>
+                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: s.color }}>{s.value}</div>
                     <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{s.label}</div>
                   </div>
                 ))}
@@ -404,7 +404,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <button onClick={() => setShowDeposit(true)} style={{
                 width: '100%', padding: '18px', borderRadius: '16px',
                 background: `linear-gradient(135deg, ${selectedGoal.color}, ${selectedGoal.color}bb)`,
-                border: 'none', color: '#fff', fontFamily: "'Syne', sans-serif",
+                border: 'none', color: '#fff', fontFamily: "'Nunito', sans-serif",
                 fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginBottom: '16px',
                 boxShadow: `0 12px 32px ${selectedGoal.color}40`,
               }}>💰 Añadir ahorro</button>
@@ -415,7 +415,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
               <div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5' }}>
+                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5' }}>
                   Mis metas 🎯
                 </div>
                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
@@ -425,7 +425,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <button onClick={() => setShowNewGoal(true)} style={{
                 background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)',
                 border: 'none', borderRadius: '12px', padding: '10px 18px',
-                color: '#fff', fontFamily: "'Syne', sans-serif", fontWeight: '800',
+                color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800',
                 fontSize: '13px', cursor: 'pointer',
                 boxShadow: '0 8px 20px rgba(255,107,53,0.35)',
               }}>+ Nueva meta</button>
@@ -442,7 +442,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
                   borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
                 }}>
-                  <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '800', fontSize: '18px', color: s.color, marginBottom: '4px' }}>
+                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color: s.color, marginBottom: '4px' }}>
                     {s.value}
                   </div>
                   <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600', letterSpacing: '0.3px' }}>
@@ -484,7 +484,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             {goals.length === 0 && (
               <div style={{ textAlign: 'center', padding: '80px 20px', color: 'rgba(255,255,255,0.25)' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>🐷</div>
-                <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: '700', fontSize: '18px', marginBottom: '8px', color: 'rgba(255,255,255,0.4)' }}>
+                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', marginBottom: '8px', color: 'rgba(255,255,255,0.4)' }}>
                   Sin metas aún
                 </div>
                 <div style={{ fontSize: '14px' }}>Crea tu primera meta de ahorro</div>

@@ -18,7 +18,7 @@ export default async function LoginPage({
       fontFamily: "'DM Sans', sans-serif",
     }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800;900&family=DM+Sans:wght@400;500;600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
       `}</style>
 
@@ -39,7 +39,7 @@ export default async function LoginPage({
             boxShadow: '0 20px 40px rgba(255,107,53,0.3)',
           }}>🐷</div>
           <h1 style={{
-            fontFamily: "'Syne', sans-serif", fontWeight: '900',
+            fontFamily: "'Nunito', sans-serif", fontWeight: '900',
             fontSize: '32px', color: '#f0f0f5', marginBottom: '8px',
           }}>PiggyDrop</h1>
           <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '15px' }}>
@@ -54,7 +54,7 @@ export default async function LoginPage({
           borderRadius: '24px', padding: '36px',
         }}>
           <h2 style={{
-            fontFamily: "'Syne', sans-serif", fontWeight: '800',
+            fontFamily: "'Nunito', sans-serif", fontWeight: '800',
             fontSize: '20px', color: '#f0f0f5', marginBottom: '8px',
           }}>Empieza gratis</h2>
           <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', marginBottom: '28px', lineHeight: '1.5' }}>

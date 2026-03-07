@@ -72,7 +72,7 @@ export default function PWARegister() {
 
       <div style={{ flex: 1 }}>
         <div style={{
-          fontFamily: "'Syne', sans-serif", fontWeight: '800',
+          fontFamily: "'Nunito', sans-serif", fontWeight: '800',
           fontSize: '14px', color: '#f0f0f5', marginBottom: '2px',
         }}>Instalar PiggyDrop</div>
         <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.45)' }}>
@@ -91,7 +91,7 @@ export default function PWARegister() {
           background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)',
           border: 'none', borderRadius: '10px', padding: '8px 14px',
           color: '#fff', fontSize: '12px', cursor: 'pointer',
-          fontFamily: "'Syne', sans-serif", fontWeight: '800',
+          fontFamily: "'Nunito', sans-serif", fontWeight: '800',
           boxShadow: '0 4px 12px rgba(255,107,53,0.4)',
         }}>Instalar</button>
       </div>
