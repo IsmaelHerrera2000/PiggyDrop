@@ -1,0 +1,68 @@
+// src/types/database.ts
+
+export type Database = {
+  public: {
+    Tables: {
+      goals: {
+        Row: {
+          id: string
+          user_id: string
+          name: string
+          emoji: string
+          color: string
+          target_price: number
+          saved_amount: number
+          currency: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          name: string
+          emoji?: string
+          color?: string
+          target_price: number
+          saved_amount?: number
+          currency?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          name?: string
+          emoji?: string
+          color?: string
+          target_price?: number
+          saved_amount?: number
+          currency?: string
+          updated_at?: string
+        }
+      }
+      deposits: {
+        Row: {
+          id: string
+          goal_id: string
+          user_id: string
+          amount: number
+          note: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          goal_id: string
+          user_id: string
+          amount: number
+          note?: string | null
+          created_at?: string
+        }
+        Update: never
+      }
+    }
+  }
+}
+
+// Convenience types
+export type Goal = Database['public']['Tables']['goals']['Row']
+export type GoalInsert = Database['public']['Tables']['goals']['Insert']
+export type Deposit = Database['public']['Tables']['deposits']['Row']
+export type DepositInsert = Database['public']['Tables']['deposits']['Insert']
