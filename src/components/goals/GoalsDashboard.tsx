@@ -606,11 +606,15 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         id: Date.now().toString(), goal_id: goalId, user_id: userId,
         amount, note, created_at: new Date().toISOString(),
       }
-      let justCompleted = false
+      // Calculamos ANTES del setGoals para no depender del updater async
+      const targetGoal = goals.find(g => g.id === goalId)
+      const justCompleted = targetGoal
+        ? (targetGoal.saved_amount + amount >= targetGoal.target_price && targetGoal.saved_amount < targetGoal.target_price)
+        : false
+
       setGoals((prev) => prev.map((g) => {
         if (g.id !== goalId) return g
         const newSaved = g.saved_amount + amount
-        if (newSaved >= g.target_price && g.saved_amount < g.target_price) justCompleted = true
         return { ...g, saved_amount: newSaved, deposits: [...(g.deposits ?? []), newDeposit] }
       }))
       if (justCompleted) setShowConfetti(true)
