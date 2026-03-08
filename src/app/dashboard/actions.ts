@@ -79,25 +79,10 @@ export async function addDepositAction(
 
 export async function deleteDepositAction(
   depositId: string,
-  amount: number,
-  goalId: string
+  _amount: number,
+  _goalId: string
 ): Promise<void> {
-  const supabase = await createClient()
-  // Update saved_amount in goal
-  const { data: goal } = await supabase
-    .from('goals')
-    .select('saved_amount')
-    .eq('id', goalId)
-    .single()
-
-  if (goal) {
-    const newAmount = Math.max(0, goal.saved_amount - amount)
-    await supabase
-      .from('goals')
-      .update({ saved_amount: newAmount, updated_at: new Date().toISOString() })
-      .eq('id', goalId)
-  }
-
+  // El trigger de Supabase recalcula saved_amount automáticamente
   await deleteDeposit(depositId)
   revalidatePath('/dashboard')
 }
