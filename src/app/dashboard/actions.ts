@@ -14,6 +14,16 @@ export async function createGoalAction(goalData: {
 }) {
   try {
     const goal = await createGoal(goalData)
+
+    // Si hay cantidad inicial, crear un depósito para que quede en el historial
+    if (goal && goalData.saved_amount > 0) {
+      await addDeposit({
+        goal_id: goal.id,
+        amount: goalData.saved_amount,
+        note: 'Ahorro inicial',
+      })
+    }
+
     revalidatePath('/dashboard')
     return goal
   } catch (error) {
@@ -24,9 +34,9 @@ export async function createGoalAction(goalData: {
 
 export async function addDepositAction(goalId: string, amount: number, note: string) {
   try {
-    await addDeposit({ goal_id: goalId, amount, note })
+    const deposit = await addDeposit({ goal_id: goalId, amount, note })
     revalidatePath('/dashboard')
-    return { success: true }
+    return { success: true, deposit }
   } catch (error) {
     console.error('Failed to add deposit:', error)
     return { success: false }
