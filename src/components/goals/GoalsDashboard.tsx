@@ -5,7 +5,7 @@ import { useState, useTransition } from 'react'
 import type { Goal, Deposit } from '@/types/database'
 import { createGoalAction, addDepositAction, deleteGoalAction } from '@/app/dashboard/actions'
 
-type Filter = 'all' | 'active' | 'completed'
+type Filter = 'all' | 'active' | 'completed' | 'history'
 
 function ErrorMsg({ msg }: { msg: string }) {
   if (!msg) return null
@@ -380,6 +380,121 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
   )
 }
 
+// ── Global History View ──────────────────────────────────────
+function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void }) {
+  // Recopilar todos los depósitos de todas las metas y ordenar por fecha desc
+  const allDeposits: (Deposit & { goalName: string; goalEmoji: string; goalColor: string; currency: string })[] = []
+
+  goals.forEach((g) => {
+    if (g.deposits) {
+      g.deposits.forEach((d) => {
+        allDeposits.push({
+          ...d,
+          goalName: g.name,
+          goalEmoji: g.emoji,
+          goalColor: g.color,
+          currency: g.currency,
+        })
+      })
+    }
+  })
+
+  allDeposits.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+  const totalDeposited = allDeposits.reduce((s, d) => s + d.amount, 0)
+
+  // Agrupar por mes
+  const grouped: Record<string, typeof allDeposits> = {}
+  allDeposits.forEach((d) => {
+    const key = new Date(d.created_at).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+    if (!grouped[key]) grouped[key] = []
+    grouped[key].push(d)
+  })
+
+  return (
+    <div style={{ animation: 'fadeUp 0.3s ease' }}>
+      <button onClick={onBack} style={{
+        background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
+        borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)',
+        fontSize: '13px', cursor: 'pointer', marginBottom: '24px',
+      }}>← Volver</button>
+
+      {/* Cabecera */}
+      <div style={{
+        background: 'linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,143,171,0.06))',
+        border: '1px solid rgba(255,107,53,0.2)',
+        borderRadius: '24px', padding: '28px', marginBottom: '20px', textAlign: 'center',
+      }}>
+        <div style={{ fontSize: '40px', marginBottom: '10px' }}>💰</div>
+        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '32px', color: '#FF6B35', marginBottom: '4px' }}>
+          €{totalDeposited.toLocaleString()}
+        </div>
+        <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)' }}>
+          total ahorrado · {allDeposits.length} depósitos
+        </div>
+      </div>
+
+      {/* Historial agrupado por mes */}
+      {allDeposits.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.3)' }}>
+          <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
+          <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px' }}>
+            Aún no hay depósitos
+          </div>
+        </div>
+      ) : (
+        Object.entries(grouped).map(([month, deposits]) => (
+          <div key={month} style={{ marginBottom: '24px' }}>
+            <div style={{
+              fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.3)',
+              letterSpacing: '1px', textTransform: 'uppercase', marginBottom: '10px',
+              paddingLeft: '4px',
+            }}>
+              {month} · €{deposits.reduce((s, d) => s + d.amount, 0).toLocaleString()}
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '20px', overflow: 'hidden',
+            }}>
+              {deposits.map((d, i) => (
+                <div key={d.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '14px 20px',
+                  borderBottom: i < deposits.length - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '38px', height: '38px', borderRadius: '10px',
+                      background: d.goalColor + '20', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0,
+                    }}>{d.goalEmoji}</div>
+                    <div>
+                      <div style={{ fontSize: '13px', color: '#f0f0f5', fontWeight: '600' }}>
+                        {d.note || 'Depósito'}
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', display: 'flex', gap: '6px' }}>
+                        <span>{d.goalName}</span>
+                        <span>·</span>
+                        <span>{new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{
+                    fontFamily: "'Nunito', sans-serif", fontWeight: '800',
+                    fontSize: '16px', color: d.goalColor,
+                  }}>
+                    +{d.currency}{d.amount.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
 // ── Main Dashboard ───────────────────────────────────────────
 export default function GoalsDashboard({ initialGoals, userId }: {
   initialGoals: Goal[]
@@ -406,7 +521,18 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'>) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
-      if (newGoal) setGoals((prev) => [newGoal, ...prev])
+      if (newGoal) {
+        // Si hay ahorro inicial, crear el depósito local también
+        const initialDeposit: Deposit | null = goalData.saved_amount > 0 ? {
+          id: Date.now().toString(),
+          goal_id: newGoal.id,
+          user_id: userId,
+          amount: goalData.saved_amount,
+          note: 'Ahorro inicial',
+          created_at: new Date().toISOString(),
+        } : null
+        setGoals((prev) => [{ ...newGoal, deposits: initialDeposit ? [initialDeposit] : [] }, ...prev])
+      }
       setShowNewGoal(false)
     })
   }
@@ -417,7 +543,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
       const newDeposit: Deposit = {
         id: Date.now().toString(),
         goal_id: goalId,
-        user_id: '',
+        user_id: userId,
         amount,
         note,
         created_at: new Date().toISOString(),
@@ -446,45 +572,28 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  // ── Stat pill ──────────────────────────────────────────────
   const StatPill = ({ label, value, color, filterKey }: {
     label: string; value: number | string; color: string; filterKey: Filter
   }) => {
     const isActive = filter === filterKey
     return (
-      <div
-        onClick={() => handleFilterClick(filterKey)}
-        style={{
-          background: isActive ? color + '18' : 'rgba(255,255,255,0.04)',
-          border: `1px solid ${isActive ? color + '50' : 'rgba(255,255,255,0.07)'}`,
-          borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
-          cursor: 'pointer', transition: 'all 0.2s',
-          boxShadow: isActive ? `0 0 20px ${color}20` : 'none',
-          transform: isActive ? 'translateY(-2px)' : 'none',
-          position: 'relative' as const,
-        }}
-        onMouseEnter={(e) => {
-          if (!isActive) e.currentTarget.style.borderColor = color + '30'
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)'
-        }}
+      <div onClick={() => handleFilterClick(filterKey)} style={{
+        background: isActive ? color + '18' : 'rgba(255,255,255,0.04)',
+        border: `1px solid ${isActive ? color + '50' : 'rgba(255,255,255,0.07)'}`,
+        borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
+        cursor: 'pointer', transition: 'all 0.2s',
+        boxShadow: isActive ? `0 0 20px ${color}20` : 'none',
+        transform: isActive ? 'translateY(-2px)' : 'none',
+        position: 'relative' as const,
+      }}
+        onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderColor = color + '30' }}
+        onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
       >
         {isActive && (
-          <div style={{
-            position: 'absolute', top: '6px', right: '8px',
-            fontSize: '8px', color: color, fontWeight: '800', letterSpacing: '0.5px',
-          }}>● FILTRO</div>
+          <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color, fontWeight: '800', letterSpacing: '0.5px' }}>● FILTRO</div>
         )}
-        <div style={{
-          fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px',
-          color: isActive ? color : color, marginBottom: '4px',
-        }}>
-          {value}
-        </div>
-        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600', letterSpacing: '0.3px' }}>
-          {label}
-        </div>
+        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color, marginBottom: '4px' }}>{value}</div>
+        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600', letterSpacing: '0.3px' }}>{label}</div>
       </div>
     )
   }
@@ -509,7 +618,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
       <div style={{ maxWidth: '520px', margin: '0 auto', padding: '32px 20px 60px' }}>
 
-        {selectedGoal ? (
+        {/* Vista historial global */}
+        {filter === 'history' ? (
+          <GlobalHistory goals={goals} onBack={() => setFilter('all')} />
+        ) : selectedGoal ? (
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <button onClick={() => setSelectedGoal(null)} style={{
               background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)',
@@ -567,16 +679,13 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               }}>💰 Añadir ahorro</button>
             )}
 
-            <button
-              onClick={() => handleDelete(selectedGoal.id)}
-              disabled={isPending}
-              style={{
-                width: '100%', padding: '14px', borderRadius: '16px',
-                background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.2)',
-                color: 'rgba(255,100,100,0.8)', fontFamily: "'Nunito', sans-serif",
-                fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '20px',
-                transition: 'all 0.2s', opacity: isPending ? 0.6 : 1,
-              }}
+            <button onClick={() => handleDelete(selectedGoal.id)} disabled={isPending} style={{
+              width: '100%', padding: '14px', borderRadius: '16px',
+              background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.2)',
+              color: 'rgba(255,100,100,0.8)', fontFamily: "'Nunito', sans-serif",
+              fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '20px',
+              transition: 'all 0.2s', opacity: isPending ? 0.6 : 1,
+            }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = 'rgba(255,80,80,0.15)'
                 e.currentTarget.style.borderColor = 'rgba(255,80,80,0.4)'
@@ -624,7 +733,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           </div>
         ) : (
           <>
-            {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
               <div>
                 <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5' }}>
@@ -643,12 +751,24 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               }}>+ Nueva meta</button>
             </div>
 
-            {/* Stats — ahora clicables */}
+            {/* Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
-              <div style={{
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)',
+              {/* Total ahorrado — clicable para historial global */}
+              <div onClick={() => setFilter('history')} style={{
+                background: filter === 'history' ? 'rgba(255,107,53,0.18)' : 'rgba(255,255,255,0.04)',
+                border: `1px solid ${filter === 'history' ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.07)'}`,
                 borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
-              }}>
+                cursor: 'pointer', transition: 'all 0.2s',
+                transform: filter === 'history' ? 'translateY(-2px)' : 'none',
+                boxShadow: filter === 'history' ? '0 0 20px rgba(255,107,53,0.2)' : 'none',
+                position: 'relative' as const,
+              }}
+                onMouseEnter={(e) => { if (filter !== 'history') e.currentTarget.style.borderColor = 'rgba(255,107,53,0.3)' }}
+                onMouseLeave={(e) => { if (filter !== 'history') e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
+              >
+                {filter === 'history' && (
+                  <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color: '#FF6B35', fontWeight: '800', letterSpacing: '0.5px' }}>● FILTRO</div>
+                )}
                 <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color: '#FF6B35', marginBottom: '4px' }}>
                   €{totalSaved.toLocaleString()}
                 </div>
@@ -660,8 +780,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <StatPill label="Completadas" value={completedGoals.length} color="#A78BFA" filterKey="completed" />
             </div>
 
-            {/* Filter label */}
-            {filter !== 'all' && (
+            {filter !== 'all' && filter !== 'history' && (
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 marginBottom: '16px', animation: 'fadeIn 0.2s ease',
@@ -679,7 +798,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               </div>
             )}
 
-            {/* Global progress */}
             {goals.length > 0 && filter === 'all' && (
               <div style={{
                 background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
@@ -701,7 +819,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               </div>
             )}
 
-            {/* Goals list */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {filteredGoals.map((goal) => (
                 <div key={goal.id} style={{ animation: 'fadeIn 0.25s ease' }}>
