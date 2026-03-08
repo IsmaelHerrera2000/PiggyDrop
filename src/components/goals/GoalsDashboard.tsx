@@ -1,12 +1,96 @@
 'use client'
 // src/components/goals/GoalsDashboard.tsx
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useEffect, useRef } from 'react'
 import type { Goal, Deposit } from '@/types/database'
 import { createGoalAction, addDepositAction, deleteGoalAction } from '@/app/dashboard/actions'
 
 type Filter = 'all' | 'active' | 'completed' | 'history'
+type Category = 'todas' | 'tecnología' | 'viajes' | 'moda' | 'hogar' | 'ocio' | 'otro'
 
+const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
+  { key: 'todas',      label: 'Todas',      emoji: '✨' },
+  { key: 'tecnología', label: 'Tecnología', emoji: '💻' },
+  { key: 'viajes',     label: 'Viajes',     emoji: '✈️' },
+  { key: 'moda',       label: 'Moda',       emoji: '👟' },
+  { key: 'hogar',      label: 'Hogar',      emoji: '🏠' },
+  { key: 'ocio',       label: 'Ocio',       emoji: '🎮' },
+  { key: 'otro',       label: 'Otro',       emoji: '🎯' },
+]
+
+// ── Helpers ──────────────────────────────────────────────────
+function getEstimatedDate(goal: Goal): string | null {
+  if (!goal.deposits || goal.deposits.length < 2) return null
+  const remaining = goal.target_price - goal.saved_amount
+  if (remaining <= 0) return null
+  const sorted = [...goal.deposits].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+  const first = new Date(sorted[0].created_at).getTime()
+  const last = new Date(sorted[sorted.length - 1].created_at).getTime()
+  const totalDays = (last - first) / (1000 * 60 * 60 * 24)
+  if (totalDays < 1) return null
+  const totalSavedInPeriod = sorted.reduce((s, d) => s + d.amount, 0)
+  const ratePerDay = totalSavedInPeriod / totalDays
+  if (ratePerDay <= 0) return null
+  const daysLeft = Math.ceil(remaining / ratePerDay)
+  if (daysLeft < 30) return `~${daysLeft} días`
+  if (daysLeft < 365) return `~${Math.round(daysLeft / 30)} meses`
+  return `~${(daysLeft / 365).toFixed(1)} años`
+}
+
+// ── Confetti ─────────────────────────────────────────────────
+function Confetti({ onDone }: { onDone: () => void }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    canvas.width = window.innerWidth
+    canvas.height = window.innerHeight
+    const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77', '#fff']
+    const pieces = Array.from({ length: 160 }, () => ({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * 100,
+      r: 4 + Math.random() * 8,
+      color: colors[Math.floor(Math.random() * colors.length)],
+      vx: (Math.random() - 0.5) * 4,
+      vy: 2 + Math.random() * 4,
+      angle: Math.random() * 360,
+      spin: (Math.random() - 0.5) * 8,
+      shape: (Math.random() > 0.5 ? 'rect' : 'circle') as 'rect' | 'circle',
+    }))
+    let frame = 0
+    const animate = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height)
+      pieces.forEach((p) => {
+        ctx.save()
+        ctx.translate(p.x, p.y)
+        ctx.rotate((p.angle * Math.PI) / 180)
+        ctx.fillStyle = p.color
+        ctx.globalAlpha = Math.max(0, 1 - frame / 120)
+        if (p.shape === 'rect') {
+          ctx.fillRect(-p.r / 2, -p.r / 2, p.r, p.r * 0.6)
+        } else {
+          ctx.beginPath()
+          ctx.arc(0, 0, p.r / 2, 0, Math.PI * 2)
+          ctx.fill()
+        }
+        ctx.restore()
+        p.x += p.vx
+        p.y += p.vy
+        p.vy += 0.1
+        p.angle += p.spin
+      })
+      frame++
+      if (frame < 140) requestAnimationFrame(animate)
+      else onDone()
+    }
+    animate()
+  }, [onDone])
+  return <canvas ref={canvasRef} style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 9999 }} />
+}
+
+// ── ErrorMsg ─────────────────────────────────────────────────
 function ErrorMsg({ msg }: { msg: string }) {
   if (!msg) return null
   return (
@@ -16,6 +100,7 @@ function ErrorMsg({ msg }: { msg: string }) {
   )
 }
 
+// ── CircularProgress ─────────────────────────────────────────
 function CircularProgress({ percentage, color, size = 120, strokeWidth = 10 }: {
   percentage: number; color: string; size?: number; strokeWidth?: number
 }) {
@@ -33,10 +118,13 @@ function CircularProgress({ percentage, color, size = 120, strokeWidth = 10 }: {
   )
 }
 
-function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void }) {
+// ── GoalCard ─────────────────────────────────────────────────
+function GoalCard({ goal, onClick }: { goal: Goal & { category?: Category }; onClick: (g: Goal) => void }) {
   const percentage = Math.min(100, Math.round((goal.saved_amount / goal.target_price) * 100))
   const remaining = goal.target_price - goal.saved_amount
   const isComplete = percentage >= 100
+  const eta = getEstimatedDate(goal)
+  const catInfo = CATEGORIES.find(c => c.key === (goal.category ?? 'otro'))
 
   return (
     <div onClick={() => onClick(goal)} style={{
@@ -63,7 +151,16 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void })
           borderRadius: '20px', letterSpacing: '1px',
         }}>✓ LISTO</div>
       )}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+      {!isComplete && catInfo && catInfo.key !== 'todas' && (
+        <div style={{
+          position: 'absolute', top: '12px', left: '12px',
+          background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+          fontSize: '10px', fontWeight: '600', padding: '2px 8px',
+          borderRadius: '20px', color: 'rgba(255,255,255,0.4)',
+          display: 'flex', alignItems: 'center', gap: '4px',
+        }}>{catInfo.emoji} {catInfo.label}</div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', marginTop: (!isComplete && catInfo && catInfo.key !== 'todas') ? '20px' : '0' }}>
         <div style={{
           width: '48px', height: '48px', borderRadius: '14px',
           background: goal.color + '20', display: 'flex', alignItems: 'center',
@@ -75,6 +172,7 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void })
           </div>
           <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>
             {isComplete ? '¡Meta alcanzada! 🎉' : `Faltan ${goal.currency}${remaining.toLocaleString()}`}
+            {!isComplete && eta && <span style={{ color: goal.color + 'aa', marginLeft: '6px' }}>· {eta}</span>}
           </div>
         </div>
       </div>
@@ -109,43 +207,9 @@ function GoalCard({ goal, onClick }: { goal: Goal; onClick: (g: Goal) => void })
   )
 }
 
-// ── Stat Pill — fuera del componente principal para evitar inferencia de tipo estrecha ──
-function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick }: {
-  label: string
-  value: number | string
-  color: string
-  filterKey: Filter
-  currentFilter: Filter
-  onFilterClick: (f: Filter) => void
-}) {
-  const isActive = currentFilter === filterKey
-  return (
-    <div onClick={() => onFilterClick(filterKey)} style={{
-      background: isActive ? color + '18' : 'rgba(255,255,255,0.04)',
-      border: `1px solid ${isActive ? color + '50' : 'rgba(255,255,255,0.07)'}`,
-      borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
-      cursor: 'pointer', transition: 'all 0.2s',
-      boxShadow: isActive ? `0 0 20px ${color}20` : 'none',
-      transform: isActive ? 'translateY(-2px)' : 'none',
-      position: 'relative' as const,
-    }}
-      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderColor = color + '30' }}
-      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
-    >
-      {isActive && (
-        <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color, fontWeight: '800', letterSpacing: '0.5px' }}>● FILTRO</div>
-      )}
-      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color, marginBottom: '4px' }}>{value}</div>
-      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600', letterSpacing: '0.3px' }}>{label}</div>
-    </div>
-  )
-}
-
-// ── Total Ahorrado Pill ──────────────────────────────────────
+// ── TotalPill ────────────────────────────────────────────────
 function TotalPill({ totalSaved, currentFilter, onFilterClick }: {
-  totalSaved: number
-  currentFilter: Filter
-  onFilterClick: (f: Filter) => void
+  totalSaved: number; currentFilter: Filter; onFilterClick: (f: Filter) => void
 }) {
   const isActive = currentFilter === 'history'
   return (
@@ -161,20 +225,42 @@ function TotalPill({ totalSaved, currentFilter, onFilterClick }: {
       onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,107,53,0.3)' }}
       onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
     >
-      {isActive && (
-        <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color: '#FF6B35', fontWeight: '800', letterSpacing: '0.5px' }}>● FILTRO</div>
-      )}
+      {isActive && <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color: '#FF6B35', fontWeight: '800' }}>● FILTRO</div>}
       <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color: '#FF6B35', marginBottom: '4px' }}>
         €{totalSaved.toLocaleString()}
       </div>
-      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600', letterSpacing: '0.3px' }}>
-        Total ahorrado
-      </div>
+      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600' }}>Total ahorrado</div>
     </div>
   )
 }
 
-// ── Add Deposit Modal ────────────────────────────────────────
+// ── StatPill ─────────────────────────────────────────────────
+function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick }: {
+  label: string; value: number | string; color: string
+  filterKey: Filter; currentFilter: Filter; onFilterClick: (f: Filter) => void
+}) {
+  const isActive = currentFilter === filterKey
+  return (
+    <div onClick={() => onFilterClick(filterKey)} style={{
+      background: isActive ? color + '18' : 'rgba(255,255,255,0.04)',
+      border: `1px solid ${isActive ? color + '50' : 'rgba(255,255,255,0.07)'}`,
+      borderRadius: '16px', padding: '16px 14px', textAlign: 'center',
+      cursor: 'pointer', transition: 'all 0.2s',
+      boxShadow: isActive ? `0 0 20px ${color}20` : 'none',
+      transform: isActive ? 'translateY(-2px)' : 'none',
+      position: 'relative' as const,
+    }}
+      onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.borderColor = color + '30' }}
+      onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.borderColor = 'rgba(255,255,255,0.07)' }}
+    >
+      {isActive && <div style={{ position: 'absolute', top: '6px', right: '8px', fontSize: '8px', color, fontWeight: '800' }}>● FILTRO</div>}
+      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color, marginBottom: '4px' }}>{value}</div>
+      <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', fontWeight: '600' }}>{label}</div>
+    </div>
+  )
+}
+
+// ── AddDepositModal ──────────────────────────────────────────
 function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
   goal: Goal; onClose: () => void
   onDeposit: (goalId: string, amount: number, note: string) => void
@@ -184,6 +270,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
   const [note, setNote] = useState('')
   const [amountError, setAmountError] = useState('')
   const [submitted, setSubmitted] = useState(false)
+  const remaining = goal.target_price - goal.saved_amount
 
   const validateAmount = (val: string) => {
     if (!val) return 'Introduce una cantidad'
@@ -205,8 +292,6 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
     if (err) { setAmountError(err); return }
     onDeposit(goal.id, parseFloat(amount), note.trim() || 'Depósito')
   }
-
-  const remaining = goal.target_price - goal.saved_amount
 
   return (
     <div style={{
@@ -232,8 +317,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
         <div style={{
           background: goal.color + '12', border: `1px solid ${goal.color}25`,
           borderRadius: '10px', padding: '10px 14px', marginBottom: '20px',
-          fontSize: '12px', color: 'rgba(255,255,255,0.5)',
-          display: 'flex', justifyContent: 'space-between',
+          fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', justifyContent: 'space-between',
         }}>
           <span>Faltan para la meta</span>
           <span style={{ color: goal.color, fontWeight: '700' }}>{goal.currency}{remaining.toLocaleString()}</span>
@@ -259,7 +343,8 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             NOTA <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>(opcional)</span>
           </label>
-          <input type="text" value={note} onChange={(e) => { if (e.target.value.length <= 60) setNote(e.target.value) }}
+          <input type="text" value={note}
+            onChange={(e) => { if (e.target.value.length <= 60) setNote(e.target.value) }}
             placeholder="Ej: Paga de marzo, freelance..."
             style={{
               width: '100%', background: 'rgba(255,255,255,0.05)',
@@ -290,16 +375,17 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
   )
 }
 
-// ── New Goal Modal ───────────────────────────────────────────
+// ── NewGoalModal ─────────────────────────────────────────────
 function NewGoalModal({ onClose, onCreate, isPending }: {
   onClose: () => void
-  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string }) => void
+  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category }) => void
   isPending: boolean
 }) {
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('🎯')
   const [price, setPrice] = useState('')
   const [initial, setInitial] = useState('')
+  const [category, setCategory] = useState<Category>('otro')
   const [errors, setErrors] = useState<{ name?: string; price?: string; initial?: string }>({})
   const [submitted, setSubmitted] = useState(false)
   const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77']
@@ -323,7 +409,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€' })
+    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€', category })
   }
 
   const handleNumericChange = (val: string, setter: (v: string) => void, field: 'price' | 'initial') => {
@@ -350,6 +436,24 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
         <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>
           Nueva meta de ahorro ✨
         </div>
+
+        {/* Categoría */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>CATEGORÍA</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
+            {CATEGORIES.filter(c => c.key !== 'todas').map((c) => (
+              <button key={c.key} onClick={() => setCategory(c.key)} style={{
+                padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                background: category === c.key ? color + '25' : 'rgba(255,255,255,0.05)',
+                border: `1px solid ${category === c.key ? color + '60' : 'rgba(255,255,255,0.1)'}`,
+                color: category === c.key ? color : 'rgba(255,255,255,0.5)',
+                cursor: 'pointer', transition: 'all 0.15s',
+              }}>{c.emoji} {c.label}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Emoji */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>EMOJI</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
@@ -363,6 +467,8 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
             ))}
           </div>
         </div>
+
+        {/* Color */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>COLOR</label>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -375,6 +481,8 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
             ))}
           </div>
         </div>
+
+        {/* Nombre */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>NOMBRE DEL PRODUCTO</label>
           <input type="text" value={name}
@@ -396,6 +504,8 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
             <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginLeft: 'auto' }}>{name.length}/40</span>
           </div>
         </div>
+
+        {/* Precios */}
         <div style={{ display: 'flex', gap: '12px', marginBottom: '8px' }}>
           <div style={{ flex: 1 }}>
             <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>PRECIO OBJETIVO (€)</label>
@@ -424,6 +534,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
             <ErrorMsg msg={errors.initial || ''} />
           </div>
         </div>
+
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
           <button onClick={onClose} style={{
             flex: 1, padding: '14px', borderRadius: '12px',
@@ -445,10 +556,9 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
   )
 }
 
-// ── Global History View ──────────────────────────────────────
+// ── GlobalHistory ────────────────────────────────────────────
 function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void }) {
   const allDeposits: (Deposit & { goalName: string; goalEmoji: string; goalColor: string; currency: string })[] = []
-
   goals.forEach((g) => {
     if (g.deposits) {
       g.deposits.forEach((d) => {
@@ -456,11 +566,8 @@ function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void })
       })
     }
   })
-
   allDeposits.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-
   const totalDeposited = allDeposits.reduce((s, d) => s + d.amount, 0)
-
   const grouped: Record<string, typeof allDeposits> = {}
   allDeposits.forEach((d) => {
     const key = new Date(d.created_at).toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
@@ -475,7 +582,6 @@ function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void })
         borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)',
         fontSize: '13px', cursor: 'pointer', marginBottom: '24px',
       }}>← Volver</button>
-
       <div style={{
         background: 'linear-gradient(135deg, rgba(255,107,53,0.12), rgba(255,143,171,0.06))',
         border: '1px solid rgba(255,107,53,0.2)',
@@ -489,13 +595,10 @@ function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void })
           total ahorrado · {allDeposits.length} depósitos
         </div>
       </div>
-
       {allDeposits.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.3)' }}>
           <div style={{ fontSize: '40px', marginBottom: '12px' }}>📭</div>
-          <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px' }}>
-            Aún no hay depósitos
-          </div>
+          <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px' }}>Aún no hay depósitos</div>
         </div>
       ) : (
         Object.entries(grouped).map(([month, deposits]) => (
@@ -523,9 +626,7 @@ function GlobalHistory({ goals, onBack }: { goals: Goal[]; onBack: () => void })
                       alignItems: 'center', justifyContent: 'center', fontSize: '18px', flexShrink: 0,
                     }}>{d.goalEmoji}</div>
                     <div>
-                      <div style={{ fontSize: '13px', color: '#f0f0f5', fontWeight: '600' }}>
-                        {d.note || 'Depósito'}
-                      </div>
+                      <div style={{ fontSize: '13px', color: '#f0f0f5', fontWeight: '600' }}>{d.note || 'Depósito'}</div>
                       <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '2px', display: 'flex', gap: '6px' }}>
                         <span>{d.goalName}</span>
                         <span>·</span>
@@ -553,9 +654,11 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 }) {
   const [goals, setGoals] = useState<Goal[]>(initialGoals)
   const [filter, setFilter] = useState<Filter>('all')
+  const [categoryFilter, setCategoryFilter] = useState<Category>('todas')
   const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null)
   const [showNewGoal, setShowNewGoal] = useState(false)
   const [showDeposit, setShowDeposit] = useState(false)
+  const [showConfetti, setShowConfetti] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const totalSaved = goals.reduce((s, g) => s + g.saved_amount, 0)
@@ -563,13 +666,14 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const activeGoals = goals.filter((g) => g.saved_amount < g.target_price)
   const completedGoals = goals.filter((g) => g.saved_amount >= g.target_price)
 
-  const filteredGoals = filter === 'active' ? activeGoals
-    : filter === 'completed' ? completedGoals
-    : goals
+  const baseFiltered = (filter === 'active' ? activeGoals : filter === 'completed' ? completedGoals : goals) as (Goal & { category?: Category })[]
+  const filteredGoals = categoryFilter === 'todas'
+    ? baseFiltered
+    : baseFiltered.filter((g) => (g.category ?? 'otro') === categoryFilter)
 
   const handleFilterClick = (f: Filter) => setFilter((prev: Filter) => prev === f ? 'all' : f)
 
-  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'>) => {
+  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category }) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
@@ -581,7 +685,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           note: 'Ahorro inicial',
           created_at: new Date().toISOString(),
         } : null
-        setGoals((prev) => [{ ...newGoal, deposits: initialDeposit ? [initialDeposit] : [] }, ...prev])
+        setGoals((prev) => [{ ...newGoal, category: goalData.category, deposits: initialDeposit ? [initialDeposit] : [] }, ...prev])
       }
       setShowNewGoal(false)
     })
@@ -598,10 +702,14 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         note,
         created_at: new Date().toISOString(),
       }
-      setGoals((prev) => prev.map((g) => g.id === goalId
-        ? { ...g, saved_amount: g.saved_amount + amount, deposits: [...(g.deposits ?? []), newDeposit] }
-        : g
-      ))
+      let justCompleted = false
+      setGoals((prev) => prev.map((g) => {
+        if (g.id !== goalId) return g
+        const newSaved = g.saved_amount + amount
+        if (newSaved >= g.target_price && g.saved_amount < g.target_price) justCompleted = true
+        return { ...g, saved_amount: newSaved, deposits: [...(g.deposits ?? []), newDeposit] }
+      }))
+      if (justCompleted) setShowConfetti(true)
       if (selectedGoal?.id === goalId) {
         setSelectedGoal((prev) => prev ? {
           ...prev,
@@ -622,6 +730,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
+  const presentCategories = ['todas', ...Array.from(new Set(
+    (goals as (Goal & { category?: Category })[]).map(g => g.category ?? 'otro')
+  ))] as Category[]
+
   return (
     <>
       <style>{`
@@ -629,19 +741,16 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         @keyframes modalIn { from { transform: scale(0.85) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
         @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
         input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
         input::placeholder { color: rgba(255,255,255,0.25); }
       `}</style>
 
-      {showNewGoal && (
-        <NewGoalModal onClose={() => setShowNewGoal(false)} onCreate={handleCreateGoal} isPending={isPending}/>
-      )}
-      {showDeposit && selectedGoal && (
-        <AddDepositModal goal={selectedGoal} onClose={() => setShowDeposit(false)} onDeposit={handleDeposit} isPending={isPending}/>
-      )}
+      {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
+      {showNewGoal && <NewGoalModal onClose={() => setShowNewGoal(false)} onCreate={handleCreateGoal} isPending={isPending}/>}
+      {showDeposit && selectedGoal && <AddDepositModal goal={selectedGoal} onClose={() => setShowDeposit(false)} onDeposit={handleDeposit} isPending={isPending}/>}
 
       <div style={{ maxWidth: '520px', margin: '0 auto', padding: '32px 20px 60px' }}>
-
         {filter === 'history' ? (
           <GlobalHistory goals={goals} onBack={() => setFilter('all')} />
         ) : selectedGoal ? (
@@ -651,7 +760,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)',
               fontSize: '13px', cursor: 'pointer', marginBottom: '24px',
             }}>← Volver</button>
-
             <div style={{
               background: `linear-gradient(135deg, ${selectedGoal.color}15, ${selectedGoal.color}05)`,
               border: `1px solid ${selectedGoal.color}30`,
@@ -661,13 +769,23 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '24px', color: '#f0f0f5', marginBottom: '4px' }}>
                 {selectedGoal.name}
               </div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', marginBottom: '28px' }}>
+              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', marginBottom: '12px' }}>
                 {selectedGoal.saved_amount >= selectedGoal.target_price
                   ? '🎉 ¡Meta completada!'
-                  : `Faltan €${(selectedGoal.target_price - selectedGoal.saved_amount).toLocaleString()}`
-                }
+                  : `Faltan €${(selectedGoal.target_price - selectedGoal.saved_amount).toLocaleString()}`}
               </div>
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', position: 'relative' }}>
+              {selectedGoal.saved_amount < selectedGoal.target_price && getEstimatedDate(selectedGoal) && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '6px',
+                  background: selectedGoal.color + '18', border: `1px solid ${selectedGoal.color}30`,
+                  borderRadius: '20px', padding: '5px 14px', marginBottom: '20px',
+                  fontSize: '12px', color: selectedGoal.color, fontWeight: '700',
+                  animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)',
+                }}>
+                  📅 Estimado: {getEstimatedDate(selectedGoal)}
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', position: 'relative', marginTop: '8px' }}>
                 <CircularProgress
                   percentage={Math.min(100, Math.round((selectedGoal.saved_amount / selectedGoal.target_price) * 100))}
                   color={selectedGoal.color} size={160} strokeWidth={14}
@@ -691,7 +809,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 ))}
               </div>
             </div>
-
             {selectedGoal.saved_amount < selectedGoal.target_price && (
               <button onClick={() => setShowDeposit(true)} style={{
                 width: '100%', padding: '18px', borderRadius: '16px',
@@ -701,7 +818,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 boxShadow: `0 12px 32px ${selectedGoal.color}40`,
               }}>💰 Añadir ahorro</button>
             )}
-
             <button onClick={() => handleDelete(selectedGoal.id)} disabled={isPending} style={{
               width: '100%', padding: '14px', borderRadius: '16px',
               background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.2)',
@@ -709,16 +825,9 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '20px',
               transition: 'all 0.2s', opacity: isPending ? 0.6 : 1,
             }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255,80,80,0.15)'
-                e.currentTarget.style.borderColor = 'rgba(255,80,80,0.4)'
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255,80,80,0.08)'
-                e.currentTarget.style.borderColor = 'rgba(255,80,80,0.2)'
-              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.15)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.4)' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.2)' }}
             >🗑️ Eliminar meta</button>
-
             {selectedGoal.deposits && selectedGoal.deposits.length > 0 && (
               <div style={{
                 background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)',
@@ -769,8 +878,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)',
                 border: 'none', borderRadius: '12px', padding: '10px 18px',
                 color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800',
-                fontSize: '13px', cursor: 'pointer',
-                boxShadow: '0 8px 20px rgba(255,107,53,0.35)',
+                fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)',
               }}>+ Nueva meta</button>
             </div>
 
@@ -779,6 +887,26 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <StatPill label="Metas activas" value={activeGoals.length} color="#4ECDC4" filterKey="active" currentFilter={filter} onFilterClick={handleFilterClick} />
               <StatPill label="Completadas" value={completedGoals.length} color="#A78BFA" filterKey="completed" currentFilter={filter} onFilterClick={handleFilterClick} />
             </div>
+
+            {/* Category pills — solo aparecen si hay más de 1 categoría */}
+            {goals.length > 0 && presentCategories.length > 2 && (
+              <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '20px', paddingBottom: '4px' }}>
+                {presentCategories.map((key) => {
+                  const cat = CATEGORIES.find(c => c.key === key)
+                  if (!cat) return null
+                  const isActive = categoryFilter === key
+                  return (
+                    <button key={key} onClick={() => setCategoryFilter(key)} style={{
+                      padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600',
+                      background: isActive ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)',
+                      border: `1px solid ${isActive ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                      color: isActive ? '#FF6B35' : 'rgba(255,255,255,0.45)',
+                      cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0,
+                    }}>{cat.emoji} {cat.label}</button>
+                  )
+                })}
+              </div>
+            )}
 
             {(filter === 'active' || filter === 'completed') && (
               <div style={{
@@ -830,10 +958,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             {filteredGoals.length === 0 && goals.length > 0 && (
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.25)' }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px' }}>
-                  {filter === 'completed' ? '🏆' : '⏳'}
+                  {filter === 'completed' ? '🏆' : categoryFilter !== 'todas' ? '🔍' : '⏳'}
                 </div>
                 <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px', color: 'rgba(255,255,255,0.35)' }}>
-                  {filter === 'completed' ? 'Aún no has completado ninguna meta' : 'No hay metas activas'}
+                  {filter === 'completed' ? 'Aún no has completado ninguna meta' : categoryFilter !== 'todas' ? 'Sin metas en esta categoría' : 'No hay metas activas'}
                 </div>
               </div>
             )}

@@ -13,6 +13,7 @@ export type Database = {
           target_price: number
           saved_amount: number
           currency: string
+          category: string
           created_at: string
           updated_at: string
         }
@@ -25,6 +26,7 @@ export type Database = {
           target_price: number
           saved_amount?: number
           currency?: string
+          category?: string
           created_at?: string
           updated_at?: string
         }
@@ -35,6 +37,7 @@ export type Database = {
           target_price?: number
           saved_amount?: number
           currency?: string
+          category?: string
           updated_at?: string
         }
       }
