@@ -13,7 +13,7 @@ export async function getGoals() {
 
   const { data, error } = await supabase
     .from('goals')
-    .select('*')
+    .select('*, deposits(*)')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false })
 
