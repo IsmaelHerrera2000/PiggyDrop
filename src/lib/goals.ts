@@ -50,6 +50,29 @@ export async function createGoal(goal: Omit<GoalInsert, 'user_id'>): Promise<Goa
   return data as Goal
 }
 
+export async function updateGoal(id: string, updates: {
+  name?: string
+  emoji?: string
+  color?: string
+  target_price?: number
+  currency?: string
+  category?: string
+}): Promise<Goal | null> {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('goals')
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('Error updating goal:', error)
+    return null
+  }
+  return data as Goal
+}
+
 export async function deleteGoal(id: string): Promise<boolean> {
   const supabase = await createClient()
   const { error } = await supabase.from('goals').delete().eq('id', id)
@@ -85,4 +108,14 @@ export async function addDeposit(deposit: DepositInsert): Promise<Deposit | null
     return null
   }
   return data
+}
+
+export async function deleteDeposit(depositId: string): Promise<boolean> {
+  const supabase = await createClient()
+  const { error } = await supabase.from('deposits').delete().eq('id', depositId)
+  if (error) {
+    console.error('Error deleting deposit:', error)
+    return false
+  }
+  return true
 }
