@@ -2,7 +2,7 @@
 // src/app/dashboard/actions.ts
 
 import { revalidatePath } from 'next/cache'
-import { createGoal, addDeposit, deleteGoal, updateGoal, deleteDeposit } from '@/lib/goals'
+import { createGoal, addDeposit, deleteGoal, updateGoal, deleteDeposit, savePushSubscription, deletePushSubscription } from '@/lib/goals'
 import { createClient } from '@/lib/supabase/server'
 import type { Goal } from '@/types/database'
 
@@ -14,6 +14,7 @@ export async function createGoalAction(goalData: {
   saved_amount: number
   currency: string
   category: string
+  monthly_target?: number | null
 }): Promise<Goal | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -27,6 +28,7 @@ export async function createGoalAction(goalData: {
     saved_amount: goalData.saved_amount,
     currency: goalData.currency,
     category: goalData.category,
+    monthly_target: goalData.monthly_target ?? null,
   })
 
   if (goal && goalData.saved_amount > 0) {
@@ -51,6 +53,7 @@ export async function updateGoalAction(
     target_price?: number
     currency?: string
     category?: string
+    monthly_target?: number | null
   }
 ): Promise<Goal | null> {
   const goal = await updateGoal(goalId, updates)
@@ -67,13 +70,7 @@ export async function addDepositAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
-  await addDeposit({
-    goal_id: goalId,
-    user_id: user.id,
-    amount,
-    note,
-  })
-
+  await addDeposit({ goal_id: goalId, user_id: user.id, amount, note })
   revalidatePath('/dashboard')
 }
 
@@ -90,4 +87,16 @@ export async function deleteDepositAction(
 export async function deleteGoalAction(goalId: string): Promise<void> {
   await deleteGoal(goalId)
   revalidatePath('/dashboard')
+}
+
+export async function subscribePushAction(sub: {
+  endpoint: string
+  p256dh: string
+  auth: string
+}): Promise<boolean> {
+  return savePushSubscription(sub)
+}
+
+export async function unsubscribePushAction(endpoint: string): Promise<boolean> {
+  return deletePushSubscription(endpoint)
 }

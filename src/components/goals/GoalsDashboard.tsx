@@ -1,9 +1,10 @@
 'use client'
 // src/components/goals/GoalsDashboard.tsx
 
-import { useState, useTransition, useEffect, useRef } from 'react'
+import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import type { Goal, Deposit } from '@/types/database'
-import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction } from '@/app/dashboard/actions'
+import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction } from '@/app/dashboard/actions'
+import ProgressChart from '@/components/goals/ProgressChart'
 
 type Filter = 'all' | 'active' | 'completed' | 'history'
 type Category = 'todas' | 'tecnología' | 'viajes' | 'moda' | 'hogar' | 'ocio' | 'otro'
@@ -35,6 +36,103 @@ function getEstimatedDate(goal: Goal): string | null {
   if (daysLeft < 365) return `~${Math.round(daysLeft / 30)} meses`
   return `~${(daysLeft / 365).toFixed(1)} años`
 }
+
+// ── Monthly target helpers ───────────────────────────────────
+function thisMonthSaved(goal: Goal): number {
+  if (!goal.deposits) return 0
+  const now = new Date()
+  return goal.deposits
+    .filter(d => {
+      const dd = new Date(d.created_at)
+      return dd.getFullYear() === now.getFullYear() && dd.getMonth() === now.getMonth()
+    })
+    .reduce((s, d) => s + d.amount, 0)
+}
+
+function monthlyStatus(goal: Goal): { saved: number; target: number; ok: boolean; daysLeft: number } | null {
+  if (!goal.monthly_target || goal.monthly_target <= 0) return null
+  const saved = thisMonthSaved(goal)
+  const now = new Date()
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+  const daysLeft = daysInMonth - now.getDate()
+  return { saved, target: goal.monthly_target, ok: saved >= goal.monthly_target, daysLeft }
+}
+
+// ── Push notifications hook ───────────────────────────────────
+function usePushNotifications() {
+  const [permission, setPermission] = useState<NotificationPermission>('default')
+  const [subscribed, setSubscribed] = useState(false)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (typeof Notification !== 'undefined') {
+      setPermission(Notification.permission)
+    }
+    // Check if already subscribed
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.pushManager.getSubscription().then(sub => {
+          setSubscribed(!!sub)
+        })
+      }).catch(() => {})
+    }
+  }, [])
+
+  const subscribe = useCallback(async (): Promise<boolean> => {
+    setLoading(true)
+    try {
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== 'granted') { setLoading(false); return false }
+
+      const reg = await navigator.serviceWorker.ready
+      const existing = await reg.pushManager.getSubscription()
+      if (existing) { setSubscribed(true); setLoading(false); return true }
+
+      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapidKey) { console.error('Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY'); setLoading(false); return false }
+
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: vapidKey,
+      })
+
+      const json = sub.toJSON()
+      await subscribePushAction({
+        endpoint: sub.endpoint,
+        p256dh: json.keys?.p256dh ?? '',
+        auth: json.keys?.auth ?? '',
+      })
+
+      setSubscribed(true)
+      setLoading(false)
+      return true
+    } catch (e) {
+      console.error('Push subscribe error:', e)
+      setLoading(false)
+      return false
+    }
+  }, [])
+
+  const unsubscribe = useCallback(async () => {
+    setLoading(true)
+    try {
+      const reg = await navigator.serviceWorker.ready
+      const sub = await reg.pushManager.getSubscription()
+      if (sub) {
+        await unsubscribePushAction(sub.endpoint)
+        await sub.unsubscribe()
+      }
+      setSubscribed(false)
+    } catch (e) {
+      console.error('Push unsubscribe error:', e)
+    }
+    setLoading(false)
+  }, [])
+
+  return { permission, subscribed, loading, subscribe, unsubscribe }
+}
+
 
 // ── Confetti ─────────────────────────────────────────────────
 function Confetti({ onDone }: { onDone: () => void }) {
@@ -116,6 +214,8 @@ function GoalCard({ goal, onClick }: { goal: Goal & { category?: string }; onCli
   const isComplete = percentage >= 100
   const eta = getEstimatedDate(goal)
   const catInfo = CATEGORIES.find(c => c.key === (goal.category ?? 'otro'))
+  const monthly = monthlyStatus(goal)
+  const showMonthlyWarn = !isComplete && monthly && !monthly.ok && new Date().getDate() >= 15
 
   return (
     <div onClick={() => onClick(goal)} style={{
@@ -131,6 +231,16 @@ function GoalCard({ goal, onClick }: { goal: Goal & { category?: string }; onCli
       )}
       {!isComplete && catInfo && catInfo.key !== 'todas' && (
         <div style={{ position: 'absolute', top: '12px', left: '12px', background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)', fontSize: '10px', fontWeight: '600', padding: '2px 8px', borderRadius: '20px', color: 'rgba(255,255,255,0.4)', display: 'flex', alignItems: 'center', gap: '4px' }}>{catInfo.emoji} {catInfo.label}</div>
+      )}
+      {showMonthlyWarn && (
+        <div style={{
+          background: 'rgba(255,200,50,0.1)', border: '1px solid rgba(255,200,50,0.3)',
+          borderRadius: '8px', padding: '6px 10px', marginBottom: '10px',
+          fontSize: '11px', color: '#FFE066', fontWeight: '600',
+          display: 'flex', alignItems: 'center', gap: '6px',
+        }}>
+          ⚠️ Este mes: €{monthly!.saved.toFixed(0)} / €{monthly!.target} — faltan {monthly!.daysLeft} días
+        </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', marginTop: (!isComplete && catInfo && catInfo.key !== 'todas') ? '20px' : '0' }}>
         <div style={{ width: '48px', height: '48px', borderRadius: '14px', background: goal.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', border: `1px solid ${goal.color}30` }}>{goal.emoji}</div>
@@ -195,7 +305,7 @@ function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick
 function EditGoalModal({ goal, onClose, onSave, isPending }: {
   goal: Goal & { category?: string }
   onClose: () => void
-  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string }) => void
+  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null }) => void
   isPending: boolean
 }) {
   const [name, setName] = useState(goal.name)
@@ -203,7 +313,8 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
   const [color, setColor] = useState(goal.color)
   const [price, setPrice] = useState(String(goal.target_price))
   const [category, setCategory] = useState<Category>((goal.category as Category) ?? 'otro')
-  const [errors, setErrors] = useState<{ name?: string; price?: string }>({})
+  const [monthlyTarget, setMonthlyTarget] = useState(goal.monthly_target ? String(goal.monthly_target) : '')
+  const [errors, setErrors] = useState<{ name?: string; price?: string; monthly?: string }>({})
   const [submitted, setSubmitted] = useState(false)
 
   const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77']
@@ -223,7 +334,8 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category })
+    const mt = monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null
+    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category, monthly_target: mt })
   }
 
   const handlePriceChange = (val: string) => {
@@ -282,7 +394,7 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
         </div>
 
         {/* Precio */}
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>PRECIO OBJETIVO (€)</label>
           <input type="text" inputMode="decimal" value={price}
             onChange={(e) => handlePriceChange(e.target.value)}
@@ -293,6 +405,22 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
               Ya tienes ahorrado €{goal.saved_amount.toLocaleString()} — el precio no puede ser menor
             </div>
           )}
+        </div>
+
+        {/* Meta mensual */}
+        <div style={{ marginBottom: '20px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            META MENSUAL (€) <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>(opcional)</span>
+          </label>
+          <input type="text" inputMode="decimal" value={monthlyTarget}
+            onChange={(e) => {
+              if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value)
+            }}
+            placeholder="Ej: 50"
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>
+            🔔 Recibirás un aviso si a mitad de mes llevas menos del 50% del objetivo mensual
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -379,7 +507,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
 // ── NewGoalModal ─────────────────────────────────────────────
 function NewGoalModal({ onClose, onCreate, isPending }: {
   onClose: () => void
-  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category }) => void
+  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category; monthly_target: number | null }) => void
   isPending: boolean
 }) {
   const [name, setName] = useState('')
@@ -387,6 +515,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
   const [price, setPrice] = useState('')
   const [initial, setInitial] = useState('')
   const [category, setCategory] = useState<Category>('otro')
+  const [monthlyTarget, setMonthlyTarget] = useState('')
   const [errors, setErrors] = useState<{ name?: string; price?: string; initial?: string }>({})
   const [submitted, setSubmitted] = useState(false)
   const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77']
@@ -410,7 +539,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€', category })
+    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€', category, monthly_target: monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null })
   }
 
   const handleNumericChange = (val: string, setter: (v: string) => void, field: 'price' | 'initial') => {
@@ -466,6 +595,20 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
             <ErrorMsg msg={errors.initial || ''} />
           </div>
         </div>
+        {/* Meta mensual */}
+        <div style={{ marginBottom: '16px', marginTop: '8px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            META MENSUAL (€) <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>(opcional)</span>
+          </label>
+          <input type="text" inputMode="decimal" value={monthlyTarget}
+            onChange={(e) => { if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value) }}
+            placeholder="Ej: 50 — te avisaremos si no llegas"
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>
+            🔔 Recibirás un aviso push si a mitad de mes no llegas al 50%
+          </div>
+        </div>
+
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>Cancelar</button>
           <button onClick={handleSubmit} disabled={isPending} style={{ flex: 2, padding: '14px', borderRadius: '12px', background: `linear-gradient(135deg, ${color}, ${color}cc)`, border: 'none', color: '#fff', fontSize: '14px', fontFamily: "'Nunito', sans-serif", fontWeight: '800', cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
@@ -561,6 +704,9 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const [showEditGoal, setShowEditGoal] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const { permission, subscribed, loading: pushLoading, subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications()
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
 
   const totalSaved = goals.reduce((s, g) => s + g.saved_amount, 0)
   const totalTarget = goals.reduce((s, g) => s + g.target_price, 0)
@@ -574,7 +720,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
   const handleFilterClick = (f: Filter) => setFilter((prev: Filter) => prev === f ? 'all' : f)
 
-  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category }) => {
+  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category; monthly_target: number | null }) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
@@ -588,7 +734,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string }) => {
+  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null }) => {
     startTransition(async () => {
       const updated = await updateGoalAction(goalId, updates)
       if (updated) {
@@ -722,6 +868,42 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.2)' }}
             >🗑️ Eliminar meta</button>
 
+            {/* Gráfico de progreso */}
+            {selectedGoal.deposits && selectedGoal.deposits.length >= 2 && (
+              <div style={{ marginBottom: '16px' }}>
+                <ProgressChart goal={selectedGoal} />
+              </div>
+            )}
+
+            {/* Meta mensual en detalle */}
+            {(() => {
+              const ms = monthlyStatus(selectedGoal)
+              if (!ms) return null
+              const pct = Math.min(100, Math.round((ms.saved / ms.target) * 100))
+              return (
+                <div style={{
+                  background: ms.ok ? 'rgba(78,205,196,0.1)' : 'rgba(255,200,50,0.08)',
+                  border: `1px solid ${ms.ok ? 'rgba(78,205,196,0.3)' : 'rgba(255,200,50,0.25)'}`,
+                  borderRadius: '16px', padding: '16px 20px', marginBottom: '16px',
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px' }}>META MENSUAL</span>
+                    <span style={{ fontSize: '12px', fontWeight: '700', color: ms.ok ? '#4ECDC4' : '#FFE066' }}>
+                      {ms.ok ? '✅ ¡Mes completado!' : `€${ms.saved.toFixed(0)} / €${ms.target} · ${ms.daysLeft}d restantes`}
+                    </span>
+                  </div>
+                  <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '100px', height: '6px', overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', width: `${pct}%`,
+                      background: ms.ok ? '#4ECDC4' : 'linear-gradient(90deg, #FFE066, #FF9F1C)',
+                      borderRadius: '100px', transition: 'width 0.8s ease',
+                      boxShadow: ms.ok ? '0 0 8px rgba(78,205,196,0.5)' : '0 0 8px rgba(255,200,50,0.4)',
+                    }}/>
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* Historial con botón eliminar depósito */}
             {selectedGoal.deposits && selectedGoal.deposits.length > 0 && (
               <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '20px' }}>
@@ -752,7 +934,22 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5' }}>Mis metas 🎯</div>
                 <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>{goals.length} metas · {completedGoals.length} completadas</div>
               </div>
-              <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>+ Nueva meta</button>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                {mounted && 'Notification' in window && (
+                  <button
+                    onClick={() => subscribed ? unsubscribePush() : subscribePush()}
+                    disabled={pushLoading}
+                    title={subscribed ? 'Desactivar notificaciones' : 'Activar notificaciones push'}
+                    style={{
+                      background: subscribed ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${subscribed ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: '12px', padding: '10px 12px', color: subscribed ? '#4ECDC4' : 'rgba(255,255,255,0.5)',
+                      fontSize: '16px', cursor: pushLoading ? 'wait' : 'pointer', opacity: pushLoading ? 0.6 : 1,
+                    }}
+                  >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
+                )}
+                <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>+ Nueva meta</button>
+              </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>

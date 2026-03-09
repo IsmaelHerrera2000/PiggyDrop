@@ -1,88 +1,80 @@
 // public/sw.js
-// Service Worker para PiggyDrop PWA
 
-const CACHE_NAME = 'piggydrop-v1'
-const STATIC_ASSETS = [
-  '/',
-  '/auth/login',
-  '/manifest.json',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-]
+const CACHE_NAME = 'piggydrop-v2'
+const STATIC_ASSETS = ['/', '/dashboard']
 
-// Instalar y cachear assets estáticos
+// ── Install & Cache ───────────────────────────────────────────
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS)
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(STATIC_ASSETS))
   )
   self.skipWaiting()
 })
 
-// Limpiar caches antiguos
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => caches.delete(key))
-      )
+    caches.keys().then(keys =>
+      Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
     )
   )
   self.clients.claim()
 })
 
-// Estrategia: Network First, fallback a cache
+// ── Network First ─────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
-  // Solo interceptar GET requests
   if (event.request.method !== 'GET') return
-
-  // No interceptar requests de Supabase (siempre online)
-  if (event.request.url.includes('supabase.co')) return
-
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        // Guardar copia en cache si es válida
-        if (response.status === 200) {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, clone)
-          })
-        }
+      .then(response => {
+        const clone = response.clone()
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone))
         return response
       })
-      .catch(() => {
-        // Sin red → servir desde cache
-        return caches.match(event.request).then((cached) => {
-          if (cached) return cached
-          // Fallback para navegación offline
-          if (event.request.mode === 'navigate') {
-            return caches.match('/')
-          }
-        })
-      })
+      .catch(() => caches.match(event.request))
   )
 })
 
-// Notificaciones push (para recordatorios futuros)
+// ── Push notifications ────────────────────────────────────────
 self.addEventListener('push', (event) => {
-  const data = event.data?.json() ?? {}
+  if (!event.data) return
+
+  let data = {}
+  try { data = event.data.json() } catch { data = { title: 'PiggyDrop', body: event.data.text() } }
+
+  const { title = 'PiggyDrop 🐷', body = '', tag = 'piggydrop', icon, badge, data: notifData } = data
+
   event.waitUntil(
-    self.registration.showNotification(data.title ?? 'PiggyDrop', {
-      body: data.body ?? '¡Recuerda añadir tu ahorro de hoy!',
-      icon: '/icons/icon-192.png',
-      badge: '/icons/icon-192.png',
-      data: { url: data.url ?? '/dashboard' },
+    self.registration.showNotification(title, {
+      body,
+      tag,
+      icon: icon || '/icons/icon-192.png',
+      badge: badge || '/icons/icon-96.png',
+      vibrate: [200, 100, 200],
+      data: notifData || { url: '/dashboard' },
+      actions: [
+        { action: 'open', title: 'Ver metas' },
+        { action: 'close', title: 'Ignorar' },
+      ],
     })
   )
 })
 
+// ── Notification click ────────────────────────────────────────
 self.addEventListener('notificationclick', (event) => {
   event.notification.close()
+
+  if (event.action === 'close') return
+
+  const url = event.notification.data?.url || '/dashboard'
+
   event.waitUntil(
-    clients.openWindow(event.notification.data?.url ?? '/dashboard')
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url.includes('/dashboard') && 'focus' in client) {
+          return client.focus()
+        }
+      }
+      return clients.openWindow(url)
+    })
   )
 })

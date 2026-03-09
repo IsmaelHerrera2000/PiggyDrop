@@ -14,6 +14,7 @@ export type Database = {
           saved_amount: number
           currency: string
           category: string
+          monthly_target: number | null
           created_at: string
           updated_at: string
         }
@@ -27,6 +28,7 @@ export type Database = {
           saved_amount?: number
           currency?: string
           category?: string
+          monthly_target?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -38,6 +40,7 @@ export type Database = {
           saved_amount?: number
           currency?: string
           category?: string
+          monthly_target?: number | null
           updated_at?: string
         }
       }
@@ -60,17 +63,34 @@ export type Database = {
         }
         Update: never
       }
+      push_subscriptions: {
+        Row: {
+          id: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          endpoint: string
+          p256dh: string
+          auth: string
+          created_at?: string
+        }
+        Update: never
+      }
     }
   }
 }
 
-// Convenience types
 export type GoalRow = Database['public']['Tables']['goals']['Row']
 export type GoalInsert = Database['public']['Tables']['goals']['Insert']
 export type Deposit = Database['public']['Tables']['deposits']['Row']
 export type DepositInsert = Database['public']['Tables']['deposits']['Insert']
 
-// Goal con depósitos opcionales
 export type Goal = GoalRow & {
   deposits?: Deposit[]
 }
