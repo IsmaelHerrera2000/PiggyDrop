@@ -877,7 +877,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     <div style={{ fontSize: '56px', marginBottom: '10px', filter: `drop-shadow(0 4px 16px ${g.color}60)`, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>{g.emoji}</div>
                     <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5', marginBottom: '4px' }}>{g.name}</div>
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                      {g.saved_amount >= g.target_price ? t.goalCompleted : `t.remainingDetail} €${(g.target_price - g.saved_amount).toLocaleString()}`}
+                      {g.saved_amount >= g.target_price ? t.goalCompleted : t.remainingDetail + ` €${(g.target_price - g.saved_amount).toLocaleString()}`}
                     </div>
                     {g.saved_amount < g.target_price && eta && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: g.color + '18', border: `1px solid ${g.color}30`, borderRadius: '20px', padding: '5px 14px', marginTop: '10px', fontSize: '12px', color: g.color, fontWeight: '700', animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
