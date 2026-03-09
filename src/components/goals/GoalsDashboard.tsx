@@ -5,6 +5,8 @@ import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import type { Goal, Deposit } from '@/types/database'
 import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction } from '@/app/dashboard/actions'
 import ProgressChart from '@/components/goals/ProgressChart'
+import { detectLocale, getT } from '@/lib/i18n'
+import type { Locale } from '@/lib/i18n'
 
 type Filter = 'all' | 'active' | 'completed' | 'history'
 type Category = 'todas' | 'tecnología' | 'viajes' | 'moda' | 'hogar' | 'ocio' | 'otro'
@@ -102,6 +104,7 @@ function usePushNotifications() {
         endpoint: sub.endpoint,
         p256dh: json.keys?.p256dh ?? '',
         auth: json.keys?.auth ?? '',
+        locale: detectLocale(),
       })
 
       setSubscribed(true)
@@ -208,7 +211,8 @@ function CircularProgress({ percentage, color, size = 120, strokeWidth = 10 }: {
 }
 
 // ── GoalCard ─────────────────────────────────────────────────
-function GoalCard({ goal, onClick }: { goal: Goal & { category?: string }; onClick: (g: Goal) => void }) {
+function GoalCard({ goal, onClick, locale }: { goal: Goal & { category?: string }; onClick: (g: Goal) => void; locale: Locale }) {
+  const t = getT(locale)
   const percentage = Math.min(100, Math.round((goal.saved_amount / goal.target_price) * 100))
   const remaining = goal.target_price - goal.saved_amount
   const isComplete = percentage >= 100
@@ -302,12 +306,14 @@ function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick
 }
 
 // ── EditGoalModal ─────────────────────────────────────────────
-function EditGoalModal({ goal, onClose, onSave, isPending }: {
+function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   goal: Goal & { category?: string }
   onClose: () => void
   onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null }) => void
   isPending: boolean
+  locale: Locale
 }) {
+  const t = getT(locale)
   const [name, setName] = useState(goal.name)
   const [emoji, setEmoji] = useState(goal.emoji)
   const [color, setColor] = useState(goal.color)
@@ -322,9 +328,9 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
 
   const validate = (n = name, p = price) => {
     const e: { name?: string; price?: string } = {}
-    if (!n.trim()) e.name = 'El nombre es obligatorio'
-    else if (n.trim().length < 2) e.name = 'Mínimo 2 caracteres'
-    if (!p || isNaN(parseFloat(p)) || parseFloat(p) <= 0) e.price = 'Introduce un precio válido'
+    if (!n.trim()) e.name = t.errorNameRequired
+    else if (n.trim().length < 2) e.name = t.errorNameShort
+    if (!p || isNaN(parseFloat(p)) || parseFloat(p) <= 0) e.price = t.errorPriceInvalid
     else if (parseFloat(p) < goal.saved_amount) e.price = `Debe ser ≥ lo ya ahorrado (€${goal.saved_amount})`
     return e
   }
@@ -348,7 +354,7 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
       <div style={{ background: '#16161f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '440px', animation: 'modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1)', maxHeight: '90vh', overflowY: 'auto' as const }} onClick={e => e.stopPropagation()}>
         <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>
-          Editar meta ✏️
+          {t.editGoalTitle}
         </div>
 
         {/* Categoría */}
@@ -424,9 +430,9 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>{t.cancel}</button>
           <button onClick={handleSubmit} disabled={isPending} style={{ flex: 2, padding: '14px', borderRadius: '12px', background: `linear-gradient(135deg, ${color}, ${color}cc)`, border: 'none', color: '#fff', fontSize: '14px', fontFamily: "'Nunito', sans-serif", fontWeight: '800', cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
-            {isPending ? 'Guardando...' : '💾 Guardar cambios'}
+            {isPending ? t.saving : t.saveChanges}
           </button>
         </div>
       </div>
@@ -435,11 +441,13 @@ function EditGoalModal({ goal, onClose, onSave, isPending }: {
 }
 
 // ── AddDepositModal ──────────────────────────────────────────
-function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
+function AddDepositModal({ goal, onClose, onDeposit, isPending, locale }: {
   goal: Goal; onClose: () => void
   onDeposit: (goalId: string, amount: number, note: string) => void
   isPending: boolean
+  locale: Locale
 }) {
+  const t = getT(locale)
   const [amount, setAmount] = useState('')
   const [note, setNote] = useState('')
   const [amountError, setAmountError] = useState('')
@@ -447,10 +455,10 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
   const remaining = goal.target_price - goal.saved_amount
 
   const validateAmount = (val: string) => {
-    if (!val) return 'Introduce una cantidad'
-    if (isNaN(parseFloat(val))) return 'Solo se permiten números'
-    if (parseFloat(val) <= 0) return 'La cantidad debe ser mayor que 0'
-    if (parseFloat(val) > 999999) return 'Cantidad demasiado grande'
+    if (!val) return t.errorAmountRequired
+    if (isNaN(parseFloat(val))) return t.errorAmountNaN
+    if (parseFloat(val) <= 0) return t.errorAmountZero
+    if (parseFloat(val) > 999999) return t.errorAmountTooHigh
     return ''
   }
 
@@ -473,12 +481,12 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '28px' }}>
           <div style={{ width: '44px', height: '44px', borderRadius: '12px', background: goal.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '22px' }}>{goal.emoji}</div>
           <div>
-            <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', color: '#f0f0f5' }}>Añadir ahorro</div>
+            <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', color: '#f0f0f5' }}>{t.addSavingTitle}</div>
             <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.4)' }}>{goal.name}</div>
           </div>
         </div>
         <div style={{ background: goal.color + '12', border: `1px solid ${goal.color}25`, borderRadius: '10px', padding: '10px 14px', marginBottom: '20px', fontSize: '12px', color: 'rgba(255,255,255,0.5)', display: 'flex', justifyContent: 'space-between' }}>
-          <span>Faltan para la meta</span>
+          <span>{t.remainingForGoal}</span>
           <span style={{ color: goal.color, fontWeight: '700' }}>{goal.currency}{remaining.toLocaleString()}</span>
         </div>
         <div style={{ marginBottom: '16px' }}>
@@ -494,9 +502,9 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px', textAlign: 'right' }}>{note.length}/60</div>
         </div>
         <div style={{ display: 'flex', gap: '12px' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>{t.cancel}</button>
           <button onClick={handleSubmit} disabled={isPending} style={{ flex: 2, padding: '14px', borderRadius: '12px', background: `linear-gradient(135deg, ${goal.color}, ${goal.color}cc)`, border: 'none', color: '#fff', fontSize: '14px', fontFamily: "'Nunito', sans-serif", fontWeight: '800', cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
-            {isPending ? '...' : '💰 Añadir ahorro'}
+            {isPending ? '...' : t.addSaving}
           </button>
         </div>
       </div>
@@ -505,11 +513,13 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending }: {
 }
 
 // ── NewGoalModal ─────────────────────────────────────────────
-function NewGoalModal({ onClose, onCreate, isPending }: {
+function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   onClose: () => void
   onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category; monthly_target: number | null }) => void
   isPending: boolean
+  locale: Locale
 }) {
+  const t = getT(locale)
   const [name, setName] = useState('')
   const [emoji, setEmoji] = useState('🎯')
   const [price, setPrice] = useState('')
@@ -524,13 +534,13 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
 
   const validate = (n = name, p = price, i = initial) => {
     const e: { name?: string; price?: string; initial?: string } = {}
-    if (!n.trim()) e.name = 'El nombre es obligatorio'
-    else if (n.trim().length < 2) e.name = 'Mínimo 2 caracteres'
-    if (!p) e.price = 'El precio objetivo es obligatorio'
-    else if (isNaN(parseFloat(p)) || parseFloat(p) <= 0) e.price = 'Introduce un precio válido mayor que 0'
-    else if (parseFloat(p) > 9999999) e.price = 'Precio demasiado alto'
-    if (i && (isNaN(parseFloat(i)) || parseFloat(i) < 0)) e.initial = 'Introduce un valor válido'
-    if (i && p && parseFloat(i) >= parseFloat(p)) e.initial = 'No puede ser mayor o igual al precio objetivo'
+    if (!n.trim()) e.name = t.errorNameRequired
+    else if (n.trim().length < 2) e.name = t.errorNameShort
+    if (!p) e.price = t.errorPriceRequired
+    else if (isNaN(parseFloat(p)) || parseFloat(p) <= 0) e.price = t.errorPriceInvalid
+    else if (parseFloat(p) > 9999999) e.price = t.errorPriceTooHigh
+    if (i && (isNaN(parseFloat(i)) || parseFloat(i) < 0)) e.initial = t.errorInitialInvalid
+    if (i && p && parseFloat(i) >= parseFloat(p)) e.initial = t.errorInitialTooHigh
     return e
   }
 
@@ -551,7 +561,7 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(14px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
       <div style={{ background: '#16161f', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '440px', animation: 'modalIn 0.3s cubic-bezier(0.34,1.56,0.64,1)', maxHeight: '90vh', overflowY: 'auto' as const }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>Nueva meta de ahorro ✨</div>
+        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5', marginBottom: '24px' }}>{t.newGoalTitle}</div>
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>CATEGORÍA</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
@@ -610,9 +620,9 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
         </div>
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>{t.cancel}</button>
           <button onClick={handleSubmit} disabled={isPending} style={{ flex: 2, padding: '14px', borderRadius: '12px', background: `linear-gradient(135deg, ${color}, ${color}cc)`, border: 'none', color: '#fff', fontSize: '14px', fontFamily: "'Nunito', sans-serif", fontWeight: '800', cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
-            {isPending ? 'Creando...' : '🎯 Crear meta'}
+            {isPending ? t.creating : t.createGoal}
           </button>
         </div>
       </div>
@@ -621,11 +631,13 @@ function NewGoalModal({ onClose, onCreate, isPending }: {
 }
 
 // ── GlobalHistory ────────────────────────────────────────────
-function GlobalHistory({ goals, onBack, onDeleteDeposit, isPending }: {
+function GlobalHistory({ goals, onBack, onDeleteDeposit, isPending, locale }: {
   goals: Goal[]; onBack: () => void
   onDeleteDeposit: (depositId: string, amount: number, goalId: string) => void
   isPending: boolean
+  locale: Locale
 }) {
+  const t = getT(locale)
   const allDeposits: (Deposit & { goalName: string; goalEmoji: string; goalColor: string; currency: string; goalId: string })[] = []
   goals.forEach((g) => {
     if (g.deposits) {
@@ -677,7 +689,7 @@ function GlobalHistory({ goals, onBack, onDeleteDeposit, isPending }: {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '16px', color: d.goalColor }}>+{d.currency}{d.amount.toLocaleString()}</div>
-                    <button onClick={() => { if (confirm(`¿Eliminar este depósito de €${d.amount}?`)) onDeleteDeposit(d.id, d.amount, d.goalId) }} disabled={isPending}
+                    <button onClick={() => { if (confirm(t.deleteDepositConfirm(d.amount))) onDeleteDeposit(d.id, d.amount, d.goalId) }} disabled={isPending}
                       style={{ width: '28px', height: '28px', borderRadius: '8px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.2)', color: 'rgba(255,100,100,0.7)', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, opacity: isPending ? 0.5 : 1 }}>×</button>
                   </div>
                 </div>
@@ -706,7 +718,12 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const [isPending, startTransition] = useTransition()
   const { permission, subscribed, loading: pushLoading, subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications()
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  const [locale, setLocale] = useState<Locale>('es')
+  useEffect(() => {
+    setMounted(true)
+    setLocale(detectLocale())
+  }, [])
+  const t = getT(locale)
 
   const totalSaved = goals.reduce((s, g) => s + g.saved_amount, 0)
   const totalTarget = goals.reduce((s, g) => s + g.target_price, 0)
@@ -793,7 +810,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   }
 
   const handleDelete = (goalId: string) => {
-    if (!confirm('¿Eliminar esta meta? Esta acción no se puede deshacer.')) return
+    if (!confirm(t.deleteGoalConfirm)) return
     startTransition(async () => {
       await deleteGoalAction(goalId)
       setGoals((prev) => prev.filter((g) => g.id !== goalId))
@@ -813,60 +830,123 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes slideInCard { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes barFill { from { width: 0%; } to { width: var(--target-w); } }
+        @keyframes pulse { 0%,100% { box-shadow: 0 12px 32px var(--btn-shadow); } 50% { box-shadow: 0 16px 40px var(--btn-shadow), 0 0 0 6px var(--btn-glow); } }
+        @keyframes countUp { from { opacity: 0; transform: translateY(8px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
+        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
+        @keyframes depositPop { 0% { transform: scale(0.8) translateY(-8px); opacity: 0; } 70% { transform: scale(1.04); } 100% { transform: scale(1) translateY(0); opacity: 1; } }
         input::placeholder { color: rgba(255,255,255,0.25); }
+        .goal-card:hover { transform: translateY(-2px); }
+        .goal-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
       `}</style>
 
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
-      {showNewGoal && <NewGoalModal onClose={() => setShowNewGoal(false)} onCreate={handleCreateGoal} isPending={isPending}/>}
-      {showDeposit && selectedGoal && <AddDepositModal goal={selectedGoal} onClose={() => setShowDeposit(false)} onDeposit={handleDeposit} isPending={isPending}/>}
-      {showEditGoal && selectedGoal && <EditGoalModal goal={selectedGoal as Goal & { category?: string }} onClose={() => setShowEditGoal(false)} onSave={handleEditGoal} isPending={isPending}/>}
+      {showNewGoal && <NewGoalModal onClose={() => setShowNewGoal(false)} onCreate={handleCreateGoal} isPending={isPending} locale={locale}/>}
+      {showDeposit && selectedGoal && <AddDepositModal goal={selectedGoal} onClose={() => setShowDeposit(false)} onDeposit={handleDeposit} isPending={isPending} locale={locale}/>}
+      {showEditGoal && selectedGoal && <EditGoalModal goal={selectedGoal as Goal & { category?: string }} onClose={() => setShowEditGoal(false)} onSave={handleEditGoal} isPending={isPending} locale={locale}/>}
 
       <div style={{ maxWidth: '520px', margin: '0 auto', padding: '32px 20px 60px' }}>
         {filter === 'history' ? (
-          <GlobalHistory goals={goals} onBack={() => setFilter('all')} onDeleteDeposit={handleDeleteDeposit} isPending={isPending}/>
+          <GlobalHistory goals={goals} onBack={() => setFilter('all')} onDeleteDeposit={handleDeleteDeposit} isPending={isPending} locale={locale}/>
         ) : selectedGoal ? (
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
               <button onClick={() => setSelectedGoal(null)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>← Volver</button>
               <button onClick={() => setShowEditGoal(true)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>✏️ Editar</button>
             </div>
-            <div style={{ background: `linear-gradient(135deg, ${selectedGoal.color}15, ${selectedGoal.color}05)`, border: `1px solid ${selectedGoal.color}30`, borderRadius: '24px', padding: '32px', textAlign: 'center', marginBottom: '16px' }}>
-              <div style={{ fontSize: '52px', marginBottom: '12px' }}>{selectedGoal.emoji}</div>
-              <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '24px', color: '#f0f0f5', marginBottom: '4px' }}>{selectedGoal.name}</div>
-              <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '14px', marginBottom: '12px' }}>
-                {selectedGoal.saved_amount >= selectedGoal.target_price ? '🎉 ¡Meta completada!' : `Faltan €${(selectedGoal.target_price - selectedGoal.saved_amount).toLocaleString()}`}
-              </div>
-              {selectedGoal.saved_amount < selectedGoal.target_price && getEstimatedDate(selectedGoal) && (
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: selectedGoal.color + '18', border: `1px solid ${selectedGoal.color}30`, borderRadius: '20px', padding: '5px 14px', marginBottom: '20px', fontSize: '12px', color: selectedGoal.color, fontWeight: '700', animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
-                  📅 Estimado: {getEstimatedDate(selectedGoal)}
-                </div>
-              )}
-              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', position: 'relative', marginTop: '8px' }}>
-                <CircularProgress percentage={Math.min(100, Math.round((selectedGoal.saved_amount / selectedGoal.target_price) * 100))} color={selectedGoal.color} size={160} strokeWidth={14}/>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '36px', color: selectedGoal.color }}>{Math.min(100, Math.round((selectedGoal.saved_amount / selectedGoal.target_price) * 100))}%</div>
-                  <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: '600' }}>completado</div>
-                </div>
-              </div>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center' }}>
-                {[
-                  { label: 'ahorrado', value: `€${selectedGoal.saved_amount.toLocaleString()}`, color: '#f0f0f5' },
-                  { label: 'objetivo', value: `€${selectedGoal.target_price.toLocaleString()}`, color: 'rgba(255,255,255,0.5)' },
-                ].map((s, i) => (
-                  <div key={i} style={{ textAlign: 'center' }}>
-                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: s.color }}>{s.value}</div>
-                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{s.label}</div>
+            {/* ── Detail hero card ── */}
+            {(() => {
+              const g = selectedGoal
+              const pct = Math.min(100, Math.round((g.saved_amount / g.target_price) * 100))
+              const deps = g.deposits ?? []
+              const maxDep = deps.length ? Math.max(...deps.map(d => d.amount)) : 0
+              const avgDep = deps.length ? deps.reduce((s,d) => s+d.amount, 0) / deps.length : 0
+              const daysSinceStart = deps.length
+                ? Math.floor((Date.now() - new Date(deps.reduce((a,b) => new Date(a.created_at) < new Date(b.created_at) ? a : b).created_at).getTime()) / 86400000)
+                : 0
+              const eta = getEstimatedDate(g)
+
+              return (
+                <div style={{ background: `linear-gradient(145deg, ${g.color}18, ${g.color}06)`, border: `1px solid ${g.color}30`, borderRadius: '28px', padding: '28px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
+                  {/* bg glow */}
+                  <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '200px', height: '200px', background: `radial-gradient(circle, ${g.color}20 0%, transparent 70%)`, pointerEvents: 'none' }}/>
+
+                  {/* Emoji + name */}
+                  <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                    <div style={{ fontSize: '56px', marginBottom: '10px', filter: `drop-shadow(0 4px 16px ${g.color}60)`, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>{g.emoji}</div>
+                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5', marginBottom: '4px' }}>{g.name}</div>
+                    <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
+                      {g.saved_amount >= g.target_price ? t.goalCompleted : `t.remainingDetail} €${(g.target_price - g.saved_amount).toLocaleString()}`}
+                    </div>
+                    {g.saved_amount < g.target_price && eta && (
+                      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: g.color + '18', border: `1px solid ${g.color}30`, borderRadius: '20px', padding: '5px 14px', marginTop: '10px', fontSize: '12px', color: g.color, fontWeight: '700', animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
+                        📅 Estimado: {eta}
+                      </div>
+                    )}
                   </div>
-                ))}
-              </div>
-            </div>
+
+                  {/* Circular progress */}
+                  <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', position: 'relative' }}>
+                    <CircularProgress percentage={pct} color={g.color} size={160} strokeWidth={14}/>
+                    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '36px', color: g.color, animation: 'countUp 0.4s ease' }}>{pct}%</div>
+                      <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: '600' }}>completado</div>
+                    </div>
+                  </div>
+
+                  {/* Main amounts */}
+                  <div style={{ display: 'flex', gap: '1px', background: 'rgba(255,255,255,0.06)', borderRadius: '16px', overflow: 'hidden', marginBottom: '16px' }}>
+                    {[
+                      { label: t.savedLabel, value: `€${g.saved_amount.toLocaleString()}`, accent: g.color },
+                      { label: t.remainingLabel, value: `€${Math.max(0, g.target_price - g.saved_amount).toLocaleString()}`, accent: 'rgba(255,255,255,0.4)' },
+                      { label: t.targetLabel, value: `€${g.target_price.toLocaleString()}`, accent: 'rgba(255,255,255,0.25)' },
+                    ].map((s, i) => (
+                      <div key={i} style={{ flex: 1, textAlign: 'center', padding: '14px 8px', background: 'rgba(255,255,255,0.02)' }}>
+                        <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '16px', color: s.accent, animation: 'countUp 0.5s ease' }}>{s.value}</div>
+                        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '3px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{s.label}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Stats grid */}
+                  {deps.length > 0 && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                      {[
+                        { icon: '💸', label: t.stat_deposits, value: deps.length },
+                        { icon: '📅', label: t.stat_days, value: daysSinceStart },
+                        { icon: '⬆️', label: t.stat_max, value: `€${maxDep.toLocaleString()}` },
+                        { icon: '📊', label: t.stat_avg, value: `€${avgDep.toFixed(2)}` },
+                      ].map((s, i) => (
+                        <div key={i} style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '12px', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '10px', animation: `fadeIn 0.4s ease ${i * 0.06}s both` }}>
+                          <span style={{ fontSize: '18px' }}>{s.icon}</span>
+                          <div>
+                            <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '14px', color: '#f0f0f5' }}>{s.value}</div>
+                            <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.35)', marginTop: '1px' }}>{s.label}</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })()}
             {selectedGoal.saved_amount < selectedGoal.target_price && (
-              <button onClick={() => setShowDeposit(true)} style={{ width: '100%', padding: '18px', borderRadius: '16px', background: `linear-gradient(135deg, ${selectedGoal.color}, ${selectedGoal.color}bb)`, border: 'none', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginBottom: '12px', boxShadow: `0 12px 32px ${selectedGoal.color}40` }}>💰 Añadir ahorro</button>
+              <button onClick={() => setShowDeposit(true)} style={{
+                width: '100%', padding: '18px', borderRadius: '16px',
+                background: `linear-gradient(135deg, ${selectedGoal.color}, ${selectedGoal.color}bb)`,
+                border: 'none', color: '#fff', fontFamily: "'Nunito', sans-serif",
+                fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginBottom: '12px',
+                '--btn-shadow': `${selectedGoal.color}50`,
+                '--btn-glow': `${selectedGoal.color}20`,
+                animation: 'pulse 2.5s ease-in-out infinite',
+                boxShadow: `0 12px 32px ${selectedGoal.color}40`,
+              } as React.CSSProperties}>💰 Añadir ahorro</button>
             )}
             <button onClick={() => handleDelete(selectedGoal.id)} disabled={isPending} style={{ width: '100%', padding: '14px', borderRadius: '16px', background: 'rgba(255,80,80,0.08)', border: '1px solid rgba(255,80,80,0.2)', color: 'rgba(255,100,100,0.8)', fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '14px', cursor: 'pointer', marginBottom: '20px', transition: 'all 0.2s', opacity: isPending ? 0.6 : 1 }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.15)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.4)' }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.2)' }}
-            >🗑️ Eliminar meta</button>
+            >{t.deleteGoal}</button>
 
             {/* Gráfico de progreso */}
             {selectedGoal.deposits && selectedGoal.deposits.length >= 2 && (
@@ -889,7 +969,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px' }}>META MENSUAL</span>
                     <span style={{ fontSize: '12px', fontWeight: '700', color: ms.ok ? '#4ECDC4' : '#FFE066' }}>
-                      {ms.ok ? '✅ ¡Mes completado!' : `€${ms.saved.toFixed(0)} / €${ms.target} · ${ms.daysLeft}d restantes`}
+                      {ms.ok ? t.monthCompleted : `€${ms.saved.toFixed(0)} / €${ms.target} · ${ms.daysLeft}d restantes`}
                     </span>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '100px', height: '6px', overflow: 'hidden' }}>
@@ -904,58 +984,124 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               )
             })()}
 
-            {/* Historial con botón eliminar depósito */}
-            {selectedGoal.deposits && selectedGoal.deposits.length > 0 && (
-              <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '20px' }}>
-                <div style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', marginBottom: '16px' }}>HISTORIAL DE DEPÓSITOS</div>
-                {[...selectedGoal.deposits].reverse().map((d, i) => (
-                  <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderBottom: i < (selectedGoal.deposits?.length ?? 0) - 1 ? '1px solid rgba(255,255,255,0.05)' : 'none' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', background: selectedGoal.color + '20', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '16px', flexShrink: 0 }}>💸</div>
-                      <div>
-                        <div style={{ fontSize: '13px', color: '#f0f0f5', fontWeight: '600' }}>{d.note || 'Depósito'}</div>
-                        <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', marginTop: '2px' }}>{new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '16px', color: selectedGoal.color }}>+{selectedGoal.currency}{d.amount.toLocaleString()}</div>
-                      <button onClick={() => { if (confirm(`¿Eliminar este depósito de €${d.amount}?`)) handleDeleteDeposit(d.id, d.amount, selectedGoal.id) }} disabled={isPending}
-                        style={{ width: '26px', height: '26px', borderRadius: '8px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.2)', color: 'rgba(255,100,100,0.7)', fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPending ? 0.5 : 1 }}>×</button>
-                    </div>
+            {/* Historial mejorado con barras relativas */}
+            {selectedGoal.deposits && selectedGoal.deposits.length > 0 && (() => {
+              const deps = [...selectedGoal.deposits].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              const maxAmt = Math.max(...deps.map(d => d.amount))
+              return (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: '20px', padding: '20px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px' }}>HISTORIAL DE DEPÓSITOS</div>
+                    <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)' }}>{deps.length} {t.entries}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                  {deps.map((d, i) => {
+                    const barPct = maxAmt > 0 ? (d.amount / maxAmt) * 100 : 0
+                    return (
+                      <div key={d.id} style={{ marginBottom: i < deps.length - 1 ? '12px' : '0', animation: `depositPop 0.35s ease ${Math.min(i,5) * 0.05}s both` }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '5px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ width: '32px', height: '32px', borderRadius: '10px', background: selectedGoal.color + '22', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '14px', flexShrink: 0 }}>💸</div>
+                            <div>
+                              <div style={{ fontSize: '13px', color: '#f0f0f5', fontWeight: '600' }}>{d.note || 'Depósito'}</div>
+                              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.3)', marginTop: '1px' }}>{new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '15px', color: selectedGoal.color }}>+{selectedGoal.currency}{d.amount.toLocaleString()}</div>
+                            <button onClick={() => { if (confirm(t.deleteDepositConfirm(d.amount))) handleDeleteDeposit(d.id, d.amount, selectedGoal.id) }} disabled={isPending}
+                              style={{ width: '24px', height: '24px', borderRadius: '7px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.2)', color: 'rgba(255,100,100,0.7)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPending ? 0.5 : 1, flexShrink: 0 }}>×</button>
+                          </div>
+                        </div>
+                        {/* Relative bar */}
+                        <div style={{ marginLeft: '42px', height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '100px', overflow: 'hidden' }}>
+                          <div style={{ height: '100%', width: `${barPct}%`, background: `linear-gradient(90deg, ${selectedGoal.color}90, ${selectedGoal.color})`, borderRadius: '100px', transition: 'width 0.8s cubic-bezier(0.34,1.1,0.64,1)' }}/>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })()}
           </div>
         ) : (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px' }}>
-              <div>
-                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5' }}>Mis metas 🎯</div>
-                <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>{goals.length} metas · {completedGoals.length} completadas</div>
+            {/* ── Rich header banner ── */}
+            <div style={{
+              background: 'linear-gradient(135deg, rgba(255,107,53,0.12) 0%, rgba(255,143,171,0.08) 50%, rgba(167,139,250,0.06) 100%)',
+              border: '1px solid rgba(255,107,53,0.2)',
+              borderRadius: '28px', padding: '28px 28px 24px', marginBottom: '20px',
+              position: 'relative', overflow: 'hidden',
+            }}>
+              {/* Background glow orbs */}
+              <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', background: 'radial-gradient(circle, rgba(255,107,53,0.15) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+              <div style={{ position: 'absolute', bottom: '-30px', left: '20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)', pointerEvents: 'none' }}/>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+                <div>
+                  <div style={{ fontSize: '12px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', marginBottom: '6px' }}>TOTAL AHORRADO</div>
+                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '38px', color: '#f0f0f5', lineHeight: 1, animation: 'countUp 0.5s ease', letterSpacing: '-1px' }}>
+                    €{totalSaved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
+                    {t.of} €{totalTarget.toLocaleString('es-ES')} {t.of} {goals.length} {goals.length === 1 ? t.goal : t.goals}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  {mounted && 'Notification' in window && (
+                    <button
+                      onClick={() => subscribed ? unsubscribePush() : subscribePush()}
+                      disabled={pushLoading}
+                      title={subscribed ? t.disableNotifs : t.enableNotifs}
+                      style={{
+                        background: subscribed ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
+                        border: `1px solid ${subscribed ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                        borderRadius: '12px', padding: '10px 12px', color: subscribed ? '#4ECDC4' : 'rgba(255,255,255,0.5)',
+                        fontSize: '16px', cursor: pushLoading ? 'wait' : 'pointer', opacity: pushLoading ? 0.6 : 1,
+                      }}
+                    >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
+                  )}
+                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>+ Nueva</button>
+                </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                {mounted && 'Notification' in window && (
-                  <button
-                    onClick={() => subscribed ? unsubscribePush() : subscribePush()}
-                    disabled={pushLoading}
-                    title={subscribed ? 'Desactivar notificaciones' : 'Activar notificaciones push'}
-                    style={{
-                      background: subscribed ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
-                      border: `1px solid ${subscribed ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: '12px', padding: '10px 12px', color: subscribed ? '#4ECDC4' : 'rgba(255,255,255,0.5)',
-                      fontSize: '16px', cursor: pushLoading ? 'wait' : 'pointer', opacity: pushLoading ? 0.6 : 1,
-                    }}
-                  >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
-                )}
-                <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>+ Nueva meta</button>
-              </div>
+
+              {/* Global progress bar */}
+              {goals.length > 0 && (() => {
+                const globalPct = totalTarget > 0 ? Math.min(100, (totalSaved / totalTarget) * 100) : 0
+                return (
+                  <div>
+                    <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '100px', height: '8px', overflow: 'hidden', marginBottom: '10px' }}>
+                      <div style={{
+                        height: '100%', width: `${globalPct}%`,
+                        background: 'linear-gradient(90deg, #FF6B35, #FF8FAB, #A78BFA)',
+                        borderRadius: '100px',
+                        backgroundSize: '200% auto',
+                        animation: globalPct > 0 ? 'shimmer 3s linear infinite' : 'none',
+                        transition: 'width 1s cubic-bezier(0.34,1.1,0.64,1)',
+                        boxShadow: '0 0 12px rgba(255,107,53,0.5)',
+                      }}/>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#4ECDC4' }}/>
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{activeGoals.length} {t.activeGoals}</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <div style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#A78BFA' }}/>
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)' }}>{completedGoals.length} {t.completed}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#FF8FAB' }}>{globalPct.toFixed(0)}% {t.globalPct}</span>
+                    </div>
+                  </div>
+                )
+              })()}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px', marginBottom: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '20px' }}>
               <TotalPill totalSaved={totalSaved} currentFilter={filter} onFilterClick={handleFilterClick} />
-              <StatPill label="Metas activas" value={activeGoals.length} color="#4ECDC4" filterKey="active" currentFilter={filter} onFilterClick={handleFilterClick} />
-              <StatPill label="Completadas" value={completedGoals.length} color="#A78BFA" filterKey="completed" currentFilter={filter} onFilterClick={handleFilterClick} />
+              <StatPill label={t.activeGoals} value={activeGoals.length} color="#4ECDC4" filterKey="active" currentFilter={filter} onFilterClick={handleFilterClick} />
+              <StatPill label={t.completed} value={completedGoals.length} color="#A78BFA" filterKey="completed" currentFilter={filter} onFilterClick={handleFilterClick} />
             </div>
 
             {goals.length > 0 && presentCategories.length > 2 && (
@@ -993,9 +1139,9 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             )}
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              {filteredGoals.map((goal) => (
-                <div key={goal.id} style={{ animation: 'fadeIn 0.25s ease' }}>
-                  <GoalCard goal={goal} onClick={setSelectedGoal}/>
+              {filteredGoals.map((goal, idx) => (
+                <div key={goal.id} style={{ animation: `slideInCard 0.35s ease ${Math.min(idx, 6) * 0.06}s both` }}>
+                  <GoalCard goal={goal} onClick={setSelectedGoal} locale={locale}/>
                 </div>
               ))}
             </div>
@@ -1004,7 +1150,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <div style={{ textAlign: 'center', padding: '60px 20px', color: 'rgba(255,255,255,0.25)' }}>
                 <div style={{ fontSize: '40px', marginBottom: '12px' }}>{filter === 'completed' ? '🏆' : categoryFilter !== 'todas' ? '🔍' : '⏳'}</div>
                 <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '16px', color: 'rgba(255,255,255,0.35)' }}>
-                  {filter === 'completed' ? 'Aún no has completado ninguna meta' : categoryFilter !== 'todas' ? 'Sin metas en esta categoría' : 'No hay metas activas'}
+                  {filter === 'completed' ? t.noCompletedGoals : categoryFilter !== 'todas' ? t.noCategoryGoals : t.noActiveGoals}
                 </div>
               </div>
             )}
@@ -1012,8 +1158,8 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             {goals.length === 0 && (
               <div style={{ textAlign: 'center', padding: '80px 20px', color: 'rgba(255,255,255,0.25)' }}>
                 <div style={{ fontSize: '48px', marginBottom: '16px' }}>🐷</div>
-                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', marginBottom: '8px', color: 'rgba(255,255,255,0.4)' }}>Sin metas aún</div>
-                <div style={{ fontSize: '14px' }}>Crea tu primera meta de ahorro</div>
+                <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '700', fontSize: '18px', marginBottom: '8px', color: 'rgba(255,255,255,0.4)' }}>{t.noGoalsTitle}</div>
+                <div style={{ fontSize: '14px' }}>{t.noGoalsBody}</div>
               </div>
             )}
           </>

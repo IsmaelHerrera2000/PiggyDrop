@@ -93,6 +93,7 @@ export async function subscribePushAction(sub: {
   endpoint: string
   p256dh: string
   auth: string
+  locale?: string
 }): Promise<boolean> {
   return savePushSubscription(sub)
 }

@@ -106,6 +106,7 @@ export async function savePushSubscription(sub: {
   endpoint: string
   p256dh: string
   auth: string
+  locale?: string
 }): Promise<boolean> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -113,7 +114,7 @@ export async function savePushSubscription(sub: {
 
   const { error } = await supabase
     .from('push_subscriptions')
-    .upsert({ user_id: user.id, ...sub }, { onConflict: 'endpoint' })
+    .upsert({ user_id: user.id, ...sub, locale: sub.locale ?? 'es' }, { onConflict: 'endpoint' })
 
   if (error) { console.error('Error saving push sub:', error); return false }
   return true
@@ -135,6 +136,7 @@ export async function getAllSubscriptionsWithGoals(): Promise<{
   p256dh: string
   auth: string
   user_id: string
+  locale: string
   goals: Goal[]
 }[]> {
   const supabase = await createClient()
