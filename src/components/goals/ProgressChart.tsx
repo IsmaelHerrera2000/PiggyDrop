@@ -11,21 +11,31 @@ import type { Goal, Deposit } from '@/types/database'
 // ── Custom Tooltip ────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }: {
   active?: boolean
-  payload?: { value: number; payload: { note?: string } }[]
+  payload?: { value: number; payload: { note?: string; dayTotal?: number } }[]
   label?: string
 }) {
   if (!active || !payload?.length) return null
+  const { value, payload: { note, dayTotal } } = payload[0]
   return (
     <div style={{
       background: '#1e1e2e', border: '1px solid rgba(255,255,255,0.12)',
-      borderRadius: '12px', padding: '10px 14px', fontSize: '12px',
+      borderRadius: '12px', padding: '10px 14px', fontSize: '12px', minWidth: '140px',
     }}>
-      <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '4px' }}>{label}</div>
-      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '16px', color: '#f0f0f5' }}>
-        €{payload[0].value.toLocaleString()}
+      <div style={{ color: 'rgba(255,255,255,0.5)', marginBottom: '6px' }}>{label}</div>
+      <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '18px', color: '#f0f0f5' }}>
+        €{value.toLocaleString()}
       </div>
-      {payload[0].payload.note && (
-        <div style={{ color: 'rgba(255,255,255,0.4)', marginTop: '2px' }}>{payload[0].payload.note}</div>
+      {dayTotal !== undefined && dayTotal > 0 && (
+        <div style={{ color: 'rgba(255,255,255,0.35)', fontSize: '11px', marginTop: '3px' }}>
+          +€{dayTotal.toLocaleString()} ese día
+        </div>
+      )}
+      {note && (
+        <div style={{
+          color: 'rgba(255,255,255,0.4)', marginTop: '4px', fontSize: '11px',
+          borderTop: '1px solid rgba(255,255,255,0.07)', paddingTop: '4px',
+          maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>{note}</div>
       )}
     </div>
   )
@@ -41,24 +51,36 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
       (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
     )
 
-    // Construir serie acumulada
+    // Agrupar por día: suma importes y concatena notas del mismo día
+    const byDay = new Map<string, { date: string; dayTotal: number; notes: string[] }>()
+    for (const d of sorted) {
+      const key = new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      if (!byDay.has(key)) byDay.set(key, { date: key, dayTotal: 0, notes: [] })
+      const entry = byDay.get(key)!
+      entry.dayTotal += d.amount
+      if (d.note) entry.notes.push(d.note)
+    }
+
+    // Construir serie acumulada sobre los días agrupados
     let cumulative = 0
-    const points = sorted.map(d => {
-      cumulative += d.amount
+    const points = Array.from(byDay.values()).map(day => {
+      cumulative += day.dayTotal
       return {
-        date: new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+        date: day.date,
         amount: Math.round(cumulative * 100) / 100,
-        note: d.note || 'Depósito',
+        dayTotal: Math.round(day.dayTotal * 100) / 100,
+        note: day.notes.length > 0 ? day.notes.join(', ') : 'Depósito',
       }
     })
 
-    // Añadir punto inicial en 0 si hay más de 1 depósito
+    // Añadir punto inicial en 0
     if (points.length > 1) {
       const firstDate = new Date(sorted[0].created_at)
       firstDate.setDate(firstDate.getDate() - 1)
       points.unshift({
         date: firstDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
         amount: 0,
+        dayTotal: 0,
         note: '',
       })
     }
@@ -144,7 +166,7 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
         display: 'flex', justifyContent: 'space-between', padding: '8px 16px 0',
         fontSize: '11px', color: 'rgba(255,255,255,0.3)',
       }}>
-        <span>{data.length - 1} depósitos registrados</span>
+        <span>{goal.deposits?.length ?? 0} depósitos · {data.length - 1} días distintos</span>
         <span style={{ color: color, fontWeight: '700' }}>{percentage}% completado</span>
       </div>
     </div>
