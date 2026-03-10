@@ -224,6 +224,36 @@ function CircularProgress({ percentage, color, size = 120, strokeWidth = 10 }: {
   )
 }
 
+
+// ── ShareButton ──────────────────────────────────────────────
+function ShareButton({ goal, t }: { goal: Goal; t: ReturnType<typeof getT> }) {
+  const [copied, setCopied] = useState(false)
+  const pct = Math.min(100, Math.round((goal.saved_amount / goal.target_price) * 100))
+  const handleShare = async () => {
+    const text = t.shareText(goal.name, goal.emoji, pct, Math.round(goal.saved_amount), goal.target_price)
+    try {
+      if (navigator.share) {
+        await navigator.share({ text })
+      } else {
+        await navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+      }
+    } catch {}
+  }
+  return (
+    <button onClick={handleShare} style={{
+      background: copied ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
+      border: `1px solid ${copied ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
+      borderRadius: '10px', padding: '8px 14px', color: copied ? '#4ECDC4' : 'rgba(255,255,255,0.6)',
+      fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px',
+      transition: 'all 0.2s',
+    }}>
+      {copied ? t.shareCopied : t.shareGoal}
+    </button>
+  )
+}
+
 // ── GoalCard ─────────────────────────────────────────────────
 function GoalCard({ goal, onClick, locale }: { goal: Goal & { category?: string }; onClick: (g: Goal) => void; locale: Locale }) {
   const t = getT(locale)
@@ -324,7 +354,7 @@ function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick
 function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   goal: Goal & { category?: string }
   onClose: () => void
-  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null }) => void
+  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; description: string | null; target_date: string | null }) => void
   isPending: boolean
   locale: Locale
 }) {
@@ -335,6 +365,8 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   const [price, setPrice] = useState(String(goal.target_price))
   const [category, setCategory] = useState<Category>((goal.category as Category) ?? 'otro')
   const [monthlyTarget, setMonthlyTarget] = useState(goal.monthly_target ? String(goal.monthly_target) : '')
+  const [description, setDescription] = useState((goal as Goal & { description?: string | null }).description ?? '')
+  const [targetDate, setTargetDate] = useState((goal as Goal & { target_date?: string | null }).target_date ?? '')
   const [errors, setErrors] = useState<{ name?: string; price?: string; monthly?: string }>({})
   const [submitted, setSubmitted] = useState(false)
 
@@ -356,7 +388,7 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
     setErrors(e)
     if (Object.keys(e).length > 0) return
     const mt = monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null
-    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category, monthly_target: mt })
+    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category, monthly_target: mt, description: description.trim() || null, target_date: targetDate || null })
   }
 
   const handlePriceChange = (val: string) => {
@@ -426,6 +458,33 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
               {t.alreadySavedNote(goal.saved_amount)}
             </div>
           )}
+        </div>
+
+        {/* Descripción */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            {t.descriptionLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.descriptionHint}</span>
+          </label>
+          <input type="text" value={description} onChange={(e) => { if (e.target.value.length <= 120) setDescription(e.target.value) }}
+            placeholder={t.descriptionPlaceholder}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px', textAlign: 'right' }}>{description.length}/120</div>
+        </div>
+
+        {/* Fecha objetivo */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            {t.targetDateLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.targetDateHint}</span>
+          </label>
+          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: targetDate ? '#f0f0f5' : 'rgba(255,255,255,0.25)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' }}/>
+          {targetDate && (() => {
+            const daysLeft = Math.ceil((new Date(targetDate).getTime() - Date.now()) / 86400000)
+            const monthsLeft = daysLeft / 30
+            const needed = monthsLeft > 0 ? Math.ceil((goal.target_price - goal.saved_amount) / monthsLeft) : 0
+            if (daysLeft < 0) return <div style={{ fontSize: '11px', color: '#FF6B35', marginTop: '6px' }}>{t.targetDatePassed}</div>
+            return needed > 0 ? <div style={{ fontSize: '11px', color: '#4ECDC4', marginTop: '6px' }}>💡 {t.needPerMonth(needed)}</div> : null
+          })()}
         </div>
 
         {/* Meta mensual */}
@@ -530,7 +589,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending, locale }: {
 // ── NewGoalModal ─────────────────────────────────────────────
 function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   onClose: () => void
-  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category; monthly_target: number | null }) => void
+  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category; monthly_target: number | null; description: string | null; target_date: string | null }) => void
   isPending: boolean
   locale: Locale
 }) {
@@ -541,6 +600,8 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   const [initial, setInitial] = useState('')
   const [category, setCategory] = useState<Category>('otro')
   const [monthlyTarget, setMonthlyTarget] = useState('')
+  const [description, setDescription] = useState('')
+  const [targetDate, setTargetDate] = useState('')
   const [errors, setErrors] = useState<{ name?: string; price?: string; initial?: string }>({})
   const [submitted, setSubmitted] = useState(false)
   const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77', '#38BDF8', '#FB923C']
@@ -564,7 +625,7 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€', category, monthly_target: monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null })
+    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency: '€', category, monthly_target: monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null, description: description.trim() || null, target_date: targetDate || null })
   }
 
   const handleNumericChange = (val: string, setter: (v: string) => void, field: 'price' | 'initial') => {
@@ -620,6 +681,33 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
             <ErrorMsg msg={errors.initial || ''} />
           </div>
         </div>
+        {/* Descripción */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            {t.descriptionLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.descriptionHint}</span>
+          </label>
+          <input type="text" value={description} onChange={(e) => { if (e.target.value.length <= 120) setDescription(e.target.value) }}
+            placeholder={t.descriptionPlaceholder}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px', textAlign: 'right' }}>{description.length}/120</div>
+        </div>
+
+        {/* Fecha objetivo */}
+        <div style={{ marginBottom: '16px' }}>
+          <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
+            {t.targetDateLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.targetDateHint}</span>
+          </label>
+          <input type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)}
+            min={new Date().toISOString().split('T')[0]}
+            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: targetDate ? '#f0f0f5' : 'rgba(255,255,255,0.25)', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const, colorScheme: 'dark' }}/>
+          {targetDate && parseFloat(price) > 0 && (() => {
+            const daysLeft = Math.ceil((new Date(targetDate).getTime() - Date.now()) / 86400000)
+            const monthsLeft = daysLeft / 30
+            const needed = monthsLeft > 0 ? Math.ceil((parseFloat(price) - (parseFloat(initial) || 0)) / monthsLeft) : 0
+            return needed > 0 ? <div style={{ fontSize: '11px', color: '#4ECDC4', marginTop: '6px' }}>💡 {t.needPerMonth(needed)}</div> : null
+          })()}
+        </div>
+
         {/* Meta mensual */}
         <div style={{ marginBottom: '16px', marginTop: '8px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
@@ -731,6 +819,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const [showEditGoal, setShowEditGoal] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [isPending, startTransition] = useTransition()
+  const [sort, setSort] = useState<'recent' | 'pct' | 'name' | 'amount'>('recent')
   const { permission, subscribed, loading: pushLoading, subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications()
   const [mounted, setMounted] = useState(false)
   const [locale, setLocale] = useState<Locale>('es')
@@ -746,13 +835,19 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const completedGoals = goals.filter((g) => g.saved_amount >= g.target_price)
 
   const baseFiltered = (filter === 'active' ? activeGoals : filter === 'completed' ? completedGoals : goals) as (Goal & { category?: string })[]
-  const filteredGoals = categoryFilter === 'todas'
+  const filteredGoals = (categoryFilter === 'todas'
     ? baseFiltered
     : baseFiltered.filter((g) => (g.category ?? 'otro') === categoryFilter)
+  ).slice().sort((a, b) => {
+    if (sort === 'pct') return (b.saved_amount / b.target_price) - (a.saved_amount / a.target_price)
+    if (sort === 'name') return a.name.localeCompare(b.name)
+    if (sort === 'amount') return b.saved_amount - a.saved_amount
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() // recent
+  })
 
   const handleFilterClick = (f: Filter) => setFilter((prev: Filter) => prev === f ? 'all' : f)
 
-  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category; monthly_target: number | null }) => {
+  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category; monthly_target: number | null; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
@@ -766,7 +861,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null }) => {
+  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
       const updated = await updateGoalAction(goalId, updates)
       if (updated) {
@@ -796,6 +891,13 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         return { ...g, saved_amount: newSaved, deposits: [...(g.deposits ?? []), newDeposit] }
       }))
       if (justCompleted) setShowConfetti(true)
+      // Milestone confetti at 25/50/75%
+      if (!justCompleted && targetGoal) {
+        const prevPct = Math.floor((targetGoal.saved_amount / targetGoal.target_price) * 100)
+        const newPct = Math.floor(((targetGoal.saved_amount + amount) / targetGoal.target_price) * 100)
+        const milestones = [25, 50, 75]
+        if (milestones.some(m => prevPct < m && newPct >= m)) setShowConfetti(true)
+      }
       if (selectedGoal?.id === goalId) {
         setSelectedGoal(prev => prev ? { ...prev, saved_amount: prev.saved_amount + amount, deposits: [...(prev.deposits ?? []), newDeposit] } : null)
       }
@@ -868,7 +970,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
               <button onClick={() => setSelectedGoal(null)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>{t.back}</button>
-              <button onClick={() => setShowEditGoal(true)} style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{t.edit}</button>
+              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+                <ShareButton goal={selectedGoal} t={t} />
+                <button onClick={() => setShowEditGoal(true)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{t.edit}</button>
+              </div>
             </div>
             {/* ── Detail hero card ── */}
             {(() => {
@@ -891,6 +996,11 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                     <div style={{ fontSize: '56px', marginBottom: '10px', filter: `drop-shadow(0 4px 16px ${g.color}60)`, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>{g.emoji}</div>
                     <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5', marginBottom: '4px' }}>{g.name}</div>
+                    {(g as Goal & { description?: string | null }).description && (
+                      <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: '13px', marginBottom: '4px', fontStyle: 'italic' }}>
+                        {(g as Goal & { description?: string | null }).description}
+                      </div>
+                    )}
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
                       {g.saved_amount >= g.target_price ? t.goalCompleted : `${t.remainingDetail} €${(g.target_price - g.saved_amount).toLocaleString()}`}
                     </div>
@@ -899,6 +1009,21 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                         {t.estimatedLabel} {eta}
                       </div>
                     )}
+                    {(g as Goal & { target_date?: string | null }).target_date && (() => {
+                      const td = (g as Goal & { target_date?: string | null }).target_date!
+                      const daysLeft = Math.ceil((new Date(td).getTime() - Date.now()) / 86400000)
+                      const isPast = daysLeft < 0
+                      const monthsLeft = daysLeft / 30
+                      const needed = !isPast && monthsLeft > 0 && g.saved_amount < g.target_price
+                        ? Math.ceil((g.target_price - g.saved_amount) / monthsLeft) : 0
+                      return (
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: isPast ? 'rgba(255,107,53,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${isPast ? 'rgba(255,107,53,0.4)' : 'rgba(255,255,255,0.12)'}`, borderRadius: '20px', padding: '5px 14px', marginTop: '8px', fontSize: '12px', color: isPast ? '#FF6B35' : 'rgba(255,255,255,0.5)', fontWeight: '600' }}>
+                          📅 {new Date(td).toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          {needed > 0 && <span style={{ color: '#4ECDC4' }}> · {t.needPerMonth(needed)}</span>}
+                          {isPast && <span> · {t.targetDatePassed}</span>}
+                        </div>
+                      )
+                    })()}
                   </div>
 
                   {/* Circular progress */}
@@ -964,7 +1089,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             >{t.deleteGoal}</button>
 
             {/* Gráfico de progreso */}
-            {selectedGoal.deposits && selectedGoal.deposits.length >= 2 && (
+            {selectedGoal.deposits && selectedGoal.deposits.length >= 1 && (
               <div style={{ marginBottom: '16px' }}>
                 <ProgressChart goal={selectedGoal} locale={locale}/>
               </div>
@@ -1129,6 +1254,26 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     <button key={key} onClick={() => setCategoryFilter(key)} style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: isActive ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isActive ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`, color: isActive ? '#FF6B35' : 'rgba(255,255,255,0.45)', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0 }}>{cat.emoji} {({todas: t.cat_todas, 'tecnología': t.cat_tecnología, viajes: t.cat_viajes, moda: t.cat_moda, belleza: t.cat_belleza, salud: t.cat_salud, deporte: t.cat_deporte, hogar: t.cat_hogar, mascotas: t.cat_mascotas, 'educación': t.cat_educación, coche: t.cat_coche, 'música': t.cat_música, 'fotografía': t.cat_fotografía, coleccionismo: t.cat_coleccionismo, regalo: t.cat_regalo, ocio: t.cat_ocio, otro: t.cat_otro} as Record<string,string>)[cat.key] ?? cat.label}</button>
                   )
                 })}
+              </div>
+            )}
+
+            {/* Sort selector */}
+            {filteredGoals.length > 1 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontWeight: '600' }}>{t.sortLabel}</span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' as const }}>
+                  {(['recent', 'pct', 'name', 'amount'] as const).map((s) => {
+                    const labels = { recent: t.sortRecent, pct: t.sortPct, name: t.sortName, amount: t.sortAmount }
+                    return (
+                      <button key={s} onClick={() => setSort(s)} style={{
+                        padding: '4px 10px', borderRadius: '20px', fontSize: '11px', fontWeight: '600',
+                        background: sort === s ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)',
+                        border: `1px solid ${sort === s ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                        color: sort === s ? '#FF6B35' : 'rgba(255,255,255,0.4)', cursor: 'pointer',
+                      }}>{labels[s]}</button>
+                    )
+                  })}
+                </div>
               </div>
             )}
 

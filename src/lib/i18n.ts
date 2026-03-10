@@ -163,6 +163,26 @@ const translations = {
     nameLabelProduct:     'NOMBRE DEL PRODUCTO',
     alreadySavedNote:     (amt: number) => `Ya tienes ahorrado €${amt.toLocaleString()} — el precio no puede ser menor`,
     monthlyTargetHelperShort: '🔔 Recibirás un aviso si a mitad de mes llevas menos del 50% del objetivo mensual',
+
+    // ── Nuevas features ──────────────────────────────────────
+    sortLabel:            'Ordenar:',
+    sortRecent:           'Más reciente',
+    sortPct:              '% completado',
+    sortName:             'Nombre',
+    sortAmount:           'Importe',
+    descriptionLabel:     'DESCRIPCIÓN',
+    descriptionHint:      '(opcional)',
+    descriptionPlaceholder: 'Ej: Para el viaje de verano con Ana...',
+    targetDateLabel:      'FECHA OBJETIVO',
+    targetDateHint:       '(opcional)',
+    targetDateHelper:     '📅 Te calcularemos cuánto ahorrar al mes para llegar a tiempo',
+    needPerMonth:         (amt: number) => `Necesitas €${amt}/mes para llegar a tiempo`,
+    targetDatePassed:     '⚠️ Fecha pasada',
+    shareGoal:            '📤 Compartir meta',
+    shareCopied:          '✅ ¡Copiado!',
+    shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
+      `¡Llevo un ${pct}% de mi meta ${emoji} ${name}! 💰 €${saved} de €${target} ahorrados con PiggyDrop 🐷`,
+    milestoneConfetti:    (pct: number) => `🎉 ¡${pct}% completado!`,
   },
 
   en: {
@@ -317,6 +337,26 @@ const translations = {
     nameLabelProduct:     'PRODUCT NAME',
     alreadySavedNote:     (amt: number) => `You've already saved €${amt.toLocaleString()} — target can't be lower`,
     monthlyTargetHelperShort: "🔔 You'll get a push alert if you're below 50% by mid-month",
+
+    // ── New features ─────────────────────────────────────────
+    sortLabel:            'Sort:',
+    sortRecent:           'Most recent',
+    sortPct:              '% complete',
+    sortName:             'Name',
+    sortAmount:           'Amount',
+    descriptionLabel:     'DESCRIPTION',
+    descriptionHint:      '(optional)',
+    descriptionPlaceholder: 'E.g. Summer trip with Ana...',
+    targetDateLabel:      'TARGET DATE',
+    targetDateHint:       '(optional)',
+    targetDateHelper:     "📅 We'll calculate how much you need to save per month",
+    needPerMonth:         (amt: number) => `You need €${amt}/month to reach your goal in time`,
+    targetDatePassed:     '⚠️ Date passed',
+    shareGoal:            '📤 Share goal',
+    shareCopied:          '✅ Copied!',
+    shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
+      `I'm ${pct}% of the way to my ${emoji} ${name} goal! 💰 €${saved} of €${target} saved with PiggyDrop 🐷`,
+    milestoneConfetti:    (pct: number) => `🎉 ${pct}% complete!`,
   },
 } as const
 

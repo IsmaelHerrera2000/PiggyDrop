@@ -15,6 +15,8 @@ export async function createGoalAction(goalData: {
   currency: string
   category: string
   monthly_target?: number | null
+  description?: string | null
+  target_date?: string | null
 }): Promise<Goal | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -29,6 +31,8 @@ export async function createGoalAction(goalData: {
     currency: goalData.currency,
     category: goalData.category,
     monthly_target: goalData.monthly_target ?? null,
+    description: goalData.description ?? null,
+    target_date: goalData.target_date ?? null,
   })
 
   if (goal && goalData.saved_amount > 0) {

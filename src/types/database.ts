@@ -15,6 +15,8 @@ export type Database = {
           currency: string
           category: string
           monthly_target: number | null
+          description: string | null
+          target_date: string | null
           created_at: string
           updated_at: string
         }
@@ -29,6 +31,8 @@ export type Database = {
           currency?: string
           category?: string
           monthly_target?: number | null
+          description?: string | null
+          target_date?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -41,6 +45,8 @@ export type Database = {
           currency?: string
           category?: string
           monthly_target?: number | null
+          description?: string | null
+          target_date?: string | null
           updated_at?: string
         }
       }

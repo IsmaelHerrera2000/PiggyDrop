@@ -76,17 +76,15 @@ export default function ProgressChart({ goal, locale = 'es' }: { goal: Goal; loc
       }
     })
 
-    // Añadir punto inicial en 0
-    if (points.length > 1) {
-      const firstDate = new Date(sorted[0].created_at)
-      firstDate.setDate(firstDate.getDate() - 1)
-      points.unshift({
-        date: firstDate.toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short' }),
-        amount: 0,
-        dayTotal: 0,
-        note: '',
-      })
-    }
+    // Añadir punto inicial en 0 — siempre
+    const firstDate = new Date(sorted[0].created_at)
+    firstDate.setDate(firstDate.getDate() - 1)
+    points.unshift({
+      date: firstDate.toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short' }),
+      amount: 0,
+      dayTotal: 0,
+      note: '',
+    })
 
     return { data: points, color: goal.color }
   }, [goal])
@@ -99,7 +97,7 @@ export default function ProgressChart({ goal, locale = 'es' }: { goal: Goal; loc
         color: 'rgba(255,255,255,0.3)', fontSize: '13px',
       }}>
         <div style={{ fontSize: '32px', marginBottom: '10px' }}>📊</div>
-        <div>{locale === 'en' ? 'You need at least 2 deposits to see the chart' : 'Necesitas al menos 2 depósitos para ver el gráfico'}</div>
+        <div>{locale === 'en' ? 'Add a deposit to see the chart' : 'Añade un depósito para ver el gráfico'}</div>
       </div>
     )
   }
