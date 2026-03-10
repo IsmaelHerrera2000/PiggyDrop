@@ -9,19 +9,32 @@ import { detectLocale, getT } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
 
 type Filter = 'all' | 'active' | 'completed' | 'history'
-type Category = 'todas' | 'tecnología' | 'viajes' | 'moda' | 'hogar' | 'ocio' | 'otro'
+type Category =
+  | 'todas' | 'tecnología' | 'viajes' | 'moda' | 'hogar' | 'ocio' | 'otro'
+  | 'belleza' | 'salud' | 'deporte' | 'mascotas' | 'educación'
+  | 'coche' | 'música' | 'fotografía' | 'coleccionismo' | 'regalo'
 
 const CATEGORIES: { key: Category; label: string; emoji: string }[] = [
-  { key: 'todas',      label: 'Todas',      emoji: '✨' },
-  { key: 'tecnología', label: 'Tecnología', emoji: '💻' },
-  { key: 'viajes',     label: 'Viajes',     emoji: '✈️' },
-  { key: 'moda',       label: 'Moda',       emoji: '👟' },
-  { key: 'hogar',      label: 'Hogar',      emoji: '🏠' },
-  { key: 'ocio',       label: 'Ocio',       emoji: '🎮' },
-  { key: 'otro',       label: 'Otro',       emoji: '🎯' },
+  { key: 'todas',         label: 'Todas',          emoji: '✨' },
+  { key: 'tecnología',    label: 'Tecnología',     emoji: '💻' },
+  { key: 'viajes',        label: 'Viajes',         emoji: '✈️' },
+  { key: 'moda',          label: 'Moda',           emoji: '👟' },
+  { key: 'belleza',       label: 'Belleza',        emoji: '💅' },
+  { key: 'salud',         label: 'Salud',          emoji: '🏥' },
+  { key: 'deporte',       label: 'Deporte',        emoji: '🏋️' },
+  { key: 'hogar',         label: 'Hogar',          emoji: '🏠' },
+  { key: 'mascotas',      label: 'Mascotas',       emoji: '🐾' },
+  { key: 'educación',     label: 'Educación',      emoji: '📚' },
+  { key: 'coche',         label: 'Coche',          emoji: '🚗' },
+  { key: 'música',        label: 'Música',         emoji: '🎵' },
+  { key: 'fotografía',    label: 'Fotografía',     emoji: '📷' },
+  { key: 'coleccionismo', label: 'Coleccionismo',  emoji: '🪆' },
+  { key: 'regalo',        label: 'Regalo',         emoji: '🎁' },
+  { key: 'ocio',          label: 'Ocio',           emoji: '🎮' },
+  { key: 'otro',          label: 'Otro',           emoji: '🎯' },
 ]
 
-function getEstimatedDate(goal: Goal): string | null {
+function getEstimatedDate(goal: Goal, locale: Locale): string | null {
   if (!goal.deposits || goal.deposits.length < 2) return null
   const remaining = goal.target_price - goal.saved_amount
   if (remaining <= 0) return null
@@ -34,9 +47,10 @@ function getEstimatedDate(goal: Goal): string | null {
   const ratePerDay = totalSavedInPeriod / totalDays
   if (ratePerDay <= 0) return null
   const daysLeft = Math.ceil(remaining / ratePerDay)
-  if (daysLeft < 30) return `~${daysLeft} días`
-  if (daysLeft < 365) return `~${Math.round(daysLeft / 30)} meses`
-  return `~${(daysLeft / 365).toFixed(1)} años`
+  const isEN = locale === 'en'
+  if (daysLeft < 30) return `~${daysLeft} ${isEN ? 'days' : 'días'}`
+  if (daysLeft < 365) return `~${Math.round(daysLeft / 30)} ${isEN ? 'months' : 'meses'}`
+  return `~${(daysLeft / 365).toFixed(1)} ${isEN ? 'years' : 'años'}`
 }
 
 // ── Monthly target helpers ───────────────────────────────────
@@ -216,7 +230,7 @@ function GoalCard({ goal, onClick, locale }: { goal: Goal & { category?: string 
   const percentage = Math.min(100, Math.round((goal.saved_amount / goal.target_price) * 100))
   const remaining = goal.target_price - goal.saved_amount
   const isComplete = percentage >= 100
-  const eta = getEstimatedDate(goal)
+  const eta = getEstimatedDate(goal, locale)
   const catInfo = CATEGORIES.find(c => c.key === (goal.category ?? 'otro'))
   const monthly = monthlyStatus(goal)
   const showMonthlyWarn = !isComplete && monthly && !monthly.ok && new Date().getDate() >= 15
@@ -243,7 +257,7 @@ function GoalCard({ goal, onClick, locale }: { goal: Goal & { category?: string 
           fontSize: '11px', color: '#FFE066', fontWeight: '600',
           display: 'flex', alignItems: 'center', gap: '6px',
         }}>
-          ⚠️ Este mes: €{monthly!.saved.toFixed(0)} / €{monthly!.target} — faltan {monthly!.daysLeft} días
+          ⚠️ {t.monthThisLabel} €{monthly!.saved.toFixed(0)} / €{monthly!.target} — {locale === 'en' ? `${monthly!.daysLeft} days left` : `faltan ${monthly!.daysLeft} días`}
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px', marginTop: (!isComplete && catInfo && catInfo.key !== 'todas') ? '20px' : '0' }}>
@@ -264,7 +278,7 @@ function GoalCard({ goal, onClick, locale }: { goal: Goal & { category?: string 
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
             <span style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '22px', color: '#f0f0f5' }}>{goal.currency}{goal.saved_amount.toLocaleString()}</span>
-            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', alignSelf: 'flex-end', marginBottom: '2px' }}>de {goal.currency}{goal.target_price.toLocaleString()}</span>
+            <span style={{ fontSize: '13px', color: 'rgba(255,255,255,0.35)', alignSelf: 'flex-end', marginBottom: '2px' }}>{t.of} {goal.currency}{goal.target_price.toLocaleString()}</span>
           </div>
           <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '100px', height: '6px', overflow: 'hidden' }}>
             <div style={{ height: '100%', background: `linear-gradient(90deg, ${goal.color}88, ${goal.color})`, borderRadius: '100px', width: `${percentage}%`, transition: 'width 1s cubic-bezier(0.4,0,0.2,1)', boxShadow: `0 0 10px ${goal.color}80` }}/>
@@ -324,8 +338,8 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   const [errors, setErrors] = useState<{ name?: string; price?: string; monthly?: string }>({})
   const [submitted, setSubmitted] = useState(false)
 
-  const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77']
-  const emojis = ['🎯', '💻', '🎧', '🎮', '👟', '✈️', '📱', '🚗', '🏠', '⌚', '📷', '🎸']
+  const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77', '#38BDF8', '#FB923C']
+  const emojis = ['🎯', '💻', '📱', '🎧', '⌚', '🎮', '✈️', '🏖️', '🗺️', '👟', '👜', '🧣', '💅', '💄', '🧴', '💊', '🏋️', '🧘', '🏠', '🛋️', '🪴', '🔑', '🐶', '🐱', '🦜', '📚', '🎓', '🔬', '🚗', '🔧', '🎵', '🎸', '🎹', '📷', '🪆', '🎁', '💰', '🐷']
 
   const validate = (n = name, p = price) => {
     const e: { name?: string; price?: string } = {}
@@ -363,7 +377,7 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.categoryLabel}</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
             {CATEGORIES.filter(c => c.key !== 'todas').map((c) => (
-              <button key={c.key} onClick={() => setCategory(c.key)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: category === c.key ? color + '25' : 'rgba(255,255,255,0.05)', border: `1px solid ${category === c.key ? color + '60' : 'rgba(255,255,255,0.1)'}`, color: category === c.key ? color : 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>{c.emoji} {c.label}</button>
+              <button key={c.key} onClick={() => setCategory(c.key)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: category === c.key ? color + '25' : 'rgba(255,255,255,0.05)', border: `1px solid ${category === c.key ? color + '60' : 'rgba(255,255,255,0.1)'}`, color: category === c.key ? color : 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>{c.emoji} {({todas: t.cat_todas, 'tecnología': t.cat_tecnología, viajes: t.cat_viajes, moda: t.cat_moda, belleza: t.cat_belleza, salud: t.cat_salud, deporte: t.cat_deporte, hogar: t.cat_hogar, mascotas: t.cat_mascotas, 'educación': t.cat_educación, coche: t.cat_coche, 'música': t.cat_música, 'fotografía': t.cat_fotografía, coleccionismo: t.cat_coleccionismo, regalo: t.cat_regalo, ocio: t.cat_ocio, otro: t.cat_otro} as Record<string,string>)[c.key] ?? c.label}</button>
             ))}
           </div>
         </div>
@@ -529,9 +543,9 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   const [monthlyTarget, setMonthlyTarget] = useState('')
   const [errors, setErrors] = useState<{ name?: string; price?: string; initial?: string }>({})
   const [submitted, setSubmitted] = useState(false)
-  const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77']
+  const colors = ['#FF6B35', '#4ECDC4', '#FFE66D', '#A78BFA', '#FF8FAB', '#6BCB77', '#38BDF8', '#FB923C']
   const [color, setColor] = useState(colors[0])
-  const emojis = ['🎯', '💻', '🎧', '🎮', '👟', '✈️', '📱', '🚗', '🏠', '⌚', '📷', '🎸']
+  const emojis = ['🎯', '💻', '📱', '🎧', '⌚', '🎮', '✈️', '🏖️', '🗺️', '👟', '👜', '🧣', '💅', '💄', '🧴', '💊', '🏋️', '🧘', '🏠', '🛋️', '🪴', '🔑', '🐶', '🐱', '🦜', '📚', '🎓', '🔬', '🚗', '🔧', '🎵', '🎸', '🎹', '📷', '🪆', '🎁', '💰', '🐷']
 
   const validate = (n = name, p = price, i = initial) => {
     const e: { name?: string; price?: string; initial?: string } = {}
@@ -567,7 +581,7 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.categoryLabel}</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
             {CATEGORIES.filter(c => c.key !== 'todas').map((c) => (
-              <button key={c.key} onClick={() => setCategory(c.key)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: category === c.key ? color + '25' : 'rgba(255,255,255,0.05)', border: `1px solid ${category === c.key ? color + '60' : 'rgba(255,255,255,0.1)'}`, color: category === c.key ? color : 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>{c.emoji} {c.label}</button>
+              <button key={c.key} onClick={() => setCategory(c.key)} style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: category === c.key ? color + '25' : 'rgba(255,255,255,0.05)', border: `1px solid ${category === c.key ? color + '60' : 'rgba(255,255,255,0.1)'}`, color: category === c.key ? color : 'rgba(255,255,255,0.5)', cursor: 'pointer' }}>{c.emoji} {({todas: t.cat_todas, 'tecnología': t.cat_tecnología, viajes: t.cat_viajes, moda: t.cat_moda, belleza: t.cat_belleza, salud: t.cat_salud, deporte: t.cat_deporte, hogar: t.cat_hogar, mascotas: t.cat_mascotas, 'educación': t.cat_educación, coche: t.cat_coche, 'música': t.cat_música, 'fotografía': t.cat_fotografía, coleccionismo: t.cat_coleccionismo, regalo: t.cat_regalo, ocio: t.cat_ocio, otro: t.cat_otro} as Record<string,string>)[c.key] ?? c.label}</button>
             ))}
           </div>
         </div>
@@ -866,7 +880,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               const daysSinceStart = deps.length
                 ? Math.floor((Date.now() - new Date(deps.reduce((a,b) => new Date(a.created_at) < new Date(b.created_at) ? a : b).created_at).getTime()) / 86400000)
                 : 0
-              const eta = getEstimatedDate(g)
+              const eta = getEstimatedDate(g, locale)
 
               return (
                 <div style={{ background: `linear-gradient(145deg, ${g.color}18, ${g.color}06)`, border: `1px solid ${g.color}30`, borderRadius: '28px', padding: '28px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
@@ -878,7 +892,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     <div style={{ fontSize: '56px', marginBottom: '10px', filter: `drop-shadow(0 4px 16px ${g.color}60)`, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>{g.emoji}</div>
                     <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5', marginBottom: '4px' }}>{g.name}</div>
                     <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: '13px' }}>
-                      {g.saved_amount >= g.target_price ? t.goalCompleted : `t.remainingDetail} €${(g.target_price - g.saved_amount).toLocaleString()}`}
+                      {g.saved_amount >= g.target_price ? t.goalCompleted : `${t.remainingDetail} €${(g.target_price - g.saved_amount).toLocaleString()}`}
                     </div>
                     {g.saved_amount < g.target_price && eta && (
                       <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', background: g.color + '18', border: `1px solid ${g.color}30`, borderRadius: '20px', padding: '5px 14px', marginTop: '10px', fontSize: '12px', color: g.color, fontWeight: '700', animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>
@@ -952,7 +966,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
             {/* Gráfico de progreso */}
             {selectedGoal.deposits && selectedGoal.deposits.length >= 2 && (
               <div style={{ marginBottom: '16px' }}>
-                <ProgressChart goal={selectedGoal} />
+                <ProgressChart goal={selectedGoal} locale={locale}/>
               </div>
             )}
 
@@ -1044,7 +1058,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     €{totalSaved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
-                    {t.of} €{totalTarget.toLocaleString('es-ES')} {t.of} {goals.length} {goals.length === 1 ? t.goal : t.goals}
+                    {t.of} €{totalTarget.toLocaleString('es-ES')} · {goals.length} {goals.length === 1 ? t.goal : t.goals}
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -1061,7 +1075,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                       }}
                     >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
                   )}
-                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>+ Nueva</button>
+                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>{t.newGoal}</button>
                 </div>
               </div>
 
@@ -1112,7 +1126,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   if (!cat) return null
                   const isActive = categoryFilter === key
                   return (
-                    <button key={key} onClick={() => setCategoryFilter(key)} style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: isActive ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isActive ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`, color: isActive ? '#FF6B35' : 'rgba(255,255,255,0.45)', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0 }}>{cat.emoji} {cat.label}</button>
+                    <button key={key} onClick={() => setCategoryFilter(key)} style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '12px', fontWeight: '600', background: isActive ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)', border: `1px solid ${isActive ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`, color: isActive ? '#FF6B35' : 'rgba(255,255,255,0.45)', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s', flexShrink: 0 }}>{cat.emoji} {({todas: t.cat_todas, 'tecnología': t.cat_tecnología, viajes: t.cat_viajes, moda: t.cat_moda, belleza: t.cat_belleza, salud: t.cat_salud, deporte: t.cat_deporte, hogar: t.cat_hogar, mascotas: t.cat_mascotas, 'educación': t.cat_educación, coche: t.cat_coche, 'música': t.cat_música, 'fotografía': t.cat_fotografía, coleccionismo: t.cat_coleccionismo, regalo: t.cat_regalo, ocio: t.cat_ocio, otro: t.cat_otro} as Record<string,string>)[cat.key] ?? cat.label}</button>
                   )
                 })}
               </div>

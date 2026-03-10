@@ -7,6 +7,8 @@ import {
   ReferenceLine, ResponsiveContainer
 } from 'recharts'
 import type { Goal, Deposit } from '@/types/database'
+import { getT } from '@/lib/i18n'
+import type { Locale } from '@/lib/i18n'
 
 // ── Custom Tooltip ────────────────────────────────────────────
 function CustomTooltip({ active, payload, label }: {
@@ -42,7 +44,8 @@ function CustomTooltip({ active, payload, label }: {
 }
 
 // ── Main component ────────────────────────────────────────────
-export default function ProgressChart({ goal }: { goal: Goal }) {
+export default function ProgressChart({ goal, locale = 'es' }: { goal: Goal; locale?: Locale }) {
+  const t = getT(locale)
   const { data, color } = useMemo(() => {
     if (!goal.deposits || goal.deposits.length === 0) return { data: [], color: goal.color }
 
@@ -54,7 +57,7 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
     // Agrupar por día: suma importes y concatena notas del mismo día
     const byDay = new Map<string, { date: string; dayTotal: number; notes: string[] }>()
     for (const d of sorted) {
-      const key = new Date(d.created_at).toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })
+      const key = new Date(d.created_at).toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short' })
       if (!byDay.has(key)) byDay.set(key, { date: key, dayTotal: 0, notes: [] })
       const entry = byDay.get(key)!
       entry.dayTotal += d.amount
@@ -78,7 +81,7 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
       const firstDate = new Date(sorted[0].created_at)
       firstDate.setDate(firstDate.getDate() - 1)
       points.unshift({
-        date: firstDate.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' }),
+        date: firstDate.toLocaleDateString(locale === 'en' ? 'en-GB' : 'es-ES', { day: 'numeric', month: 'short' }),
         amount: 0,
         dayTotal: 0,
         note: '',
@@ -96,7 +99,7 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
         color: 'rgba(255,255,255,0.3)', fontSize: '13px',
       }}>
         <div style={{ fontSize: '32px', marginBottom: '10px' }}>📊</div>
-        <div>Necesitas al menos 2 depósitos para ver el gráfico</div>
+        <div>{locale === 'en' ? 'You need at least 2 deposits to see the chart' : 'Necesitas al menos 2 depósitos para ver el gráfico'}</div>
       </div>
     )
   }
@@ -112,7 +115,7 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
         fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)',
         letterSpacing: '1px', paddingLeft: '16px', marginBottom: '16px',
       }}>
-        EVOLUCIÓN DEL AHORRO
+        {locale === 'en' ? 'SAVINGS PROGRESS' : 'EVOLUCIÓN DEL AHORRO'}
       </div>
       <ResponsiveContainer width="100%" height={180}>
         <AreaChart data={data} margin={{ top: 5, right: 16, left: 0, bottom: 0 }}>
@@ -166,8 +169,8 @@ export default function ProgressChart({ goal }: { goal: Goal }) {
         display: 'flex', justifyContent: 'space-between', padding: '8px 16px 0',
         fontSize: '11px', color: 'rgba(255,255,255,0.3)',
       }}>
-        <span>{goal.deposits?.length ?? 0} depósitos · {data.length - 1} días distintos</span>
-        <span style={{ color: color, fontWeight: '700' }}>{percentage}% completado</span>
+        <span>{goal.deposits?.length ?? 0} {locale === 'en' ? 'deposits' : 'depósitos'} · {data.length - 1} {locale === 'en' ? 'different days' : 'días distintos'}</span>
+        <span style={{ color: color, fontWeight: '700' }}>{percentage}% {locale === 'en' ? 'complete' : 'completado'}</span>
       </div>
     </div>
   )
