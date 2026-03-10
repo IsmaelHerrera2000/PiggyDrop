@@ -183,6 +183,19 @@ const translations = {
     shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
       `¡Llevo un ${pct}% de mi meta ${emoji} ${name}! 💰 €${saved} de €${target} ahorrados con PiggyDrop 🐷`,
     milestoneConfetti:    (pct: number) => `🎉 ¡${pct}% completado!`,
+    // ── Nuevas features 2 ────────────────────────────────────
+    hideAmounts:          '👁️ Ocultar importes',
+    showAmounts:          '👁️ Mostrar importes',
+    pinGoal:              'Anclar meta',
+    unpinGoal:            'Desanclar meta',
+    pinnedLabel:          '📌 Anclada',
+    daysInactive:         (d: number) => `${d}d sin ahorrar`,
+    almostDone:           '¡Casi!',
+    currencyLabel:        'MONEDA',
+    editDeposit:          'Editar depósito',
+    saveDeposit:          'Guardar',
+    newAmountLabel:       'NUEVO IMPORTE',
+    newNoteLabel:         'NUEVA NOTA',
   },
 
   en: {
@@ -357,6 +370,19 @@ const translations = {
     shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
       `I'm ${pct}% of the way to my ${emoji} ${name} goal! 💰 €${saved} of €${target} saved with PiggyDrop 🐷`,
     milestoneConfetti:    (pct: number) => `🎉 ${pct}% complete!`,
+    // ── New features 2 ───────────────────────────────────────
+    hideAmounts:          '👁️ Hide amounts',
+    showAmounts:          '👁️ Show amounts',
+    pinGoal:              'Pin goal',
+    unpinGoal:            'Unpin goal',
+    pinnedLabel:          '📌 Pinned',
+    daysInactive:         (d: number) => `${d}d no savings`,
+    almostDone:           'Almost!',
+    currencyLabel:        'CURRENCY',
+    editDeposit:          'Edit deposit',
+    saveDeposit:          'Save',
+    newAmountLabel:       'NEW AMOUNT',
+    newNoteLabel:         'NEW NOTE',
   },
 } as const
 
