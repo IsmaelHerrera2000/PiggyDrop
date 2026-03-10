@@ -133,6 +133,26 @@ const translations = {
     push_recap_body:         (saved: number, pct: number) => `Este mes ahorraste €${saved}. Llevas un ${pct}% del total. ¡Gran trabajo!`,
     push_view_goals:         'Ver metas',
     push_dismiss:            'Ignorar',
+
+    // ── Misc UI ───────────────────────────────────────────────
+    goalReached:          '¡Meta alcanzada! 🎉',
+    remainingShort:       (amt: number, currency: string) => `Faltan ${currency}${amt.toLocaleString()}`,
+    totalSavedSmall:      'total ahorrado',
+    globalProgress:       'PROGRESO GLOBAL',
+    showingFilter:        'Mostrando:',
+    filterActive:         'Metas activas',
+    filterCompleted:      'Completadas',
+    clearFilter:          'Ver todas ×',
+    completedCircle:      'completado',
+    totalSavedSummary:    (n: number) => `total ahorrado · ${n} depósitos`,
+    depositFallback:      'Depósito',
+    daysRemaining:        (d: number) => `${d}d restantes`,
+    placeholderNote:      'Ej: Paga de marzo, freelance...',
+    placeholderPrice:     'Ej: MacBook Pro M4',
+    placeholderMonthly:   'Ej: 50 — te avisaremos si no llegas',
+    nameLabelProduct:     'NOMBRE DEL PRODUCTO',
+    alreadySavedNote:     (amt: number) => `Ya tienes ahorrado €${amt.toLocaleString()} — el precio no puede ser menor`,
+    monthlyTargetHelperShort: '🔔 Recibirás un aviso si a mitad de mes llevas menos del 50% del objetivo mensual',
   },
 
   en: {
@@ -257,6 +277,26 @@ const translations = {
     push_recap_body:         (saved: number, pct: number) => `You saved €${saved} this month. You're at ${pct}% overall. Great work!`,
     push_view_goals:         'View goals',
     push_dismiss:            'Dismiss',
+
+    // ── Misc UI ───────────────────────────────────────────────
+    goalReached:          '🎉 Goal reached!',
+    remainingShort:       (amt: number, currency: string) => `${currency}${amt.toLocaleString()} to go`,
+    totalSavedSmall:      'total saved',
+    globalProgress:       'GLOBAL PROGRESS',
+    showingFilter:        'Showing:',
+    filterActive:         'Active goals',
+    filterCompleted:      'Completed',
+    clearFilter:          'Show all ×',
+    completedCircle:      'complete',
+    totalSavedSummary:    (n: number) => `total saved · ${n} deposits`,
+    depositFallback:      'Deposit',
+    daysRemaining:        (d: number) => `${d}d left`,
+    placeholderNote:      'E.g. March paycheck, freelance...',
+    placeholderPrice:     'E.g. MacBook Pro M4',
+    placeholderMonthly:   'E.g. 50 — we\'ll remind you if you fall behind',
+    nameLabelProduct:     'PRODUCT NAME',
+    alreadySavedNote:     (amt: number) => `You've already saved €${amt.toLocaleString()} — target can't be lower`,
+    monthlyTargetHelperShort: "🔔 You'll get a push alert if you're below 50% by mid-month",
   },
 } as const
 
