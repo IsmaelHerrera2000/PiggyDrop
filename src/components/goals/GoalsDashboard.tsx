@@ -3,7 +3,7 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import type { Goal, Deposit } from '@/types/database'
-import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction } from '@/app/dashboard/actions'
+import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction, toggleGoalPublicAction } from '@/app/dashboard/actions'
 import ProgressChart from '@/components/goals/ProgressChart'
 import { detectLocale, getT } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
@@ -65,16 +65,57 @@ function thisMonthSaved(goal: Goal): number {
     .reduce((s, d) => s + d.amount, 0)
 }
 
-function monthlyStatus(goal: Goal): { saved: number; target: number; ok: boolean; daysLeft: number } | null {
-  if (!goal.monthly_target || goal.monthly_target <= 0) return null
-  const saved = thisMonthSaved(goal)
+function thisWeekSaved(goal: Goal): number {
+  if (!goal.deposits) return 0
   const now = new Date()
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
-  const daysLeft = daysInMonth - now.getDate()
-  return { saved, target: goal.monthly_target, ok: saved >= goal.monthly_target, daysLeft }
+  const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
+  const weekStart = new Date(now); weekStart.setDate(now.getDate() - dayOfWeek); weekStart.setHours(0,0,0,0)
+  return goal.deposits.filter(d => new Date(d.created_at) >= weekStart).reduce((s, d) => s + d.amount, 0)
 }
 
+function calcStreak(goal: Goal): number {
+  if (!goal.deposits || goal.deposits.length === 0) return 0
+  // Build set of unique deposit days (YYYY-MM-DD)
+  const days = new Set(goal.deposits.map(d => d.created_at.slice(0, 10)))
+  let streak = 0
+  const today = new Date()
+  // Start from today and walk backwards; allow today OR yesterday as "current"
+  let check = new Date(today)
+  // If no deposit today, start from yesterday (streak not broken yet today)
+  if (!days.has(check.toISOString().slice(0, 10))) check.setDate(check.getDate() - 1)
+  while (days.has(check.toISOString().slice(0, 10))) {
+    streak++
+    check.setDate(check.getDate() - 1)
+  }
+  return streak
+}
+
+function periodStatus(goal: Goal): { saved: number; target: number; ok: boolean; daysLeft: number; period: 'monthly' | 'weekly' } | null {
+  if (!goal.monthly_target || goal.monthly_target <= 0) return null
+  const period = (goal.savings_period === 'weekly' ? 'weekly' : 'monthly') as 'monthly' | 'weekly'
+  const now = new Date()
+  if (period === 'weekly') {
+    const saved = thisWeekSaved(goal)
+    const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
+    const daysLeft = 6 - dayOfWeek
+    return { saved, target: goal.monthly_target, ok: saved >= goal.monthly_target, daysLeft, period }
+  } else {
+    const saved = thisMonthSaved(goal)
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+    const daysLeft = daysInMonth - now.getDate()
+    return { saved, target: goal.monthly_target, ok: saved >= goal.monthly_target, daysLeft, period }
+  }
+}
+const monthlyStatus = periodStatus
+
 // ── Push notifications hook ───────────────────────────────────
+function urlBase64ToUint8Array(base64String: string): Uint8Array {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
+  const rawData = atob(base64)
+  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
+}
+
 function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState(false)
@@ -110,7 +151,7 @@ function usePushNotifications() {
 
       const sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: vapidKey,
+        applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
       })
 
       const json = sub.toJSON()
@@ -340,7 +381,8 @@ function GoalCard({ goal, onClick, locale, pinned, onPin, hideAmounts, deleting 
     return days >= 7 ? days : null
   })()
   const almostDone = !isComplete && percentage >= 90
-  const hasBadgeTop = isComplete || almostDone || daysSinceLast !== null || pinned
+  const streak = calcStreak(goal)
+  const hasBadgeTop = isComplete || almostDone || daysSinceLast !== null || pinned || streak >= 3
 
   return (
     <div onClick={() => onClick(goal)} style={{
@@ -357,6 +399,13 @@ function GoalCard({ goal, onClick, locale, pinned, onPin, hideAmounts, deleting 
     >
       {/* Top-right badge cluster */}
       <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '60%', justifyContent: 'flex-end' }}>
+        {streak >= 3 && <span style={{
+          background: streak >= 7 ? 'rgba(255,107,53,0.18)' : 'rgba(255,160,50,0.13)',
+          border: `1px solid ${streak >= 7 ? 'rgba(255,107,53,0.5)' : 'rgba(255,160,50,0.35)'}`,
+          color: streak >= 7 ? '#FF6B35' : '#FFB347',
+          fontSize: '9px', fontWeight: '800', padding: '2px 7px', borderRadius: '20px',
+          animation: streak >= 7 ? 'pulse 1.8s ease-in-out infinite' : 'none',
+        }}>🔥 {streak}{locale === 'en' ? 'd' : 'd'}</span>}
         {almostDone && <span style={{ background: 'rgba(255,230,50,0.13)', border: '1px solid rgba(255,230,50,0.35)', color: '#FFE066', fontSize: '9px', fontWeight: '800', padding: '2px 7px', borderRadius: '20px' }}>🏁 {t.almostDone}</span>}
         {daysSinceLast && <span style={{ background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.3)', color: 'rgba(255,130,130,0.9)', fontSize: '9px', fontWeight: '700', padding: '2px 7px', borderRadius: '20px' }}>⏰ {t.daysInactive(daysSinceLast)}</span>}
         {isComplete && <span style={{ background: '#4ECDC4', color: '#0a0a0f', fontSize: '9px', fontWeight: '800', padding: '2px 8px', borderRadius: '20px', letterSpacing: '0.5px' }}>✓ LISTO</span>}
@@ -372,7 +421,7 @@ function GoalCard({ goal, onClick, locale, pinned, onPin, hideAmounts, deleting 
 
       {showMonthlyWarn && (
         <div style={{ background: 'rgba(255,200,50,0.1)', border: '1px solid rgba(255,200,50,0.3)', borderRadius: '8px', padding: '6px 10px', marginBottom: '10px', fontSize: '11px', color: '#FFE066', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          ⚠️ {t.monthThisLabel} {hideAmounts ? '•••• / ••••' : `€${monthly!.saved.toFixed(0)} / €${monthly!.target}`} — {locale === 'en' ? `${monthly!.daysLeft} days left` : `faltan ${monthly!.daysLeft} días`}
+          ⚠️ {monthly!.period === 'weekly' ? (locale === 'en' ? 'This week' : 'Esta semana') : t.monthThisLabel} {hideAmounts ? '•••• / ••••' : `€${monthly!.saved.toFixed(0)} / €${monthly!.target}`} — {locale === 'en' ? `${monthly!.daysLeft} days left` : `faltan ${monthly!.daysLeft} días`}
         </div>
       )}
 
@@ -444,7 +493,7 @@ function StatPill({ label, value, color, filterKey, currentFilter, onFilterClick
 function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   goal: Goal & { category?: string }
   onClose: () => void
-  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; description: string | null; target_date: string | null }) => void
+  onSave: (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; description: string | null; target_date: string | null }) => void
   isPending: boolean
   locale: Locale
 }) {
@@ -455,6 +504,7 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
   const [price, setPrice] = useState(String(goal.target_price))
   const [category, setCategory] = useState<Category>((goal.category as Category) ?? 'otro')
   const [monthlyTarget, setMonthlyTarget] = useState(goal.monthly_target ? String(goal.monthly_target) : '')
+  const [savingsPeriod, setSavingsPeriod] = useState<'none'|'monthly'|'weekly'>(goal.monthly_target ? ((goal.savings_period === 'weekly' ? 'weekly' : 'monthly')) : 'none')
   const [description, setDescription] = useState((goal as Goal & { description?: string | null }).description ?? '')
   const [targetDate, setTargetDate] = useState((goal as Goal & { target_date?: string | null }).target_date ?? '')
   const [errors, setErrors] = useState<{ name?: string; price?: string; monthly?: string }>({})
@@ -477,8 +527,9 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    const mt = monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null
-    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category, monthly_target: mt, description: description.trim() || null, target_date: targetDate || null })
+    const mt = savingsPeriod !== 'none' && monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null
+    const sp = savingsPeriod !== 'none' && mt ? savingsPeriod : null
+    onSave(goal.id, { name: name.trim(), emoji, color, target_price: parseFloat(price), category, monthly_target: mt, savings_period: sp, description: description.trim() || null, target_date: targetDate || null })
   }
 
   const handlePriceChange = (val: string) => {
@@ -577,20 +628,28 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           })()}
         </div>
 
-        {/* Meta mensual */}
+        {/* Objetivo de ahorro periódico */}
         <div style={{ marginBottom: '20px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
-            {t.monthlyTargetLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>(opcional)</span>
+            {locale === 'en' ? 'SAVINGS TARGET' : 'OBJETIVO DE AHORRO'} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{locale === 'en' ? '(optional)' : '(opcional)'}</span>
           </label>
-          <input type="text" inputMode="decimal" value={monthlyTarget}
-            onChange={(e) => {
-              if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value)
-            }}
-            placeholder="Ej: 50"
-            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>
-            {t.monthlyTargetHelperShort}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            {(['none', 'monthly', 'weekly'] as const).map(p => (
+              <button key={p} onClick={() => setSavingsPeriod(p)}
+                style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '11px', fontWeight: '700',
+                  background: savingsPeriod === p ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${savingsPeriod === p ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: savingsPeriod === p ? '#FF6B35' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+                {p === 'none' ? (locale === 'en' ? 'None' : 'Ninguno') : p === 'monthly' ? (locale === 'en' ? '📅 Monthly' : '📅 Mensual') : (locale === 'en' ? '📆 Weekly' : '📆 Semanal')}
+              </button>
+            ))}
           </div>
+          {savingsPeriod !== 'none' && (
+            <input type="text" inputMode="decimal" value={monthlyTarget}
+              onChange={(e) => { if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value) }}
+              placeholder={locale === 'en' ? `Target per ${savingsPeriod === 'weekly' ? 'week' : 'month'} (e.g. 50)` : `Meta por ${savingsPeriod === 'weekly' ? 'semana' : 'mes'} (ej: 50)`}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '12px' }}>
@@ -679,7 +738,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending, locale }: {
 // ── NewGoalModal ─────────────────────────────────────────────
 function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   onClose: () => void
-  onCreate: (goal: { name: string; emoji: string; color: string; target_price: number; saved_amount: number; currency: string; category: Category; monthly_target: number | null; description: string | null; target_date: string | null }) => void
+  onCreate: (goal: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; description: string | null; target_date: string | null }) => void
   isPending: boolean
   locale: Locale
 }) {
@@ -690,6 +749,7 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   const [initial, setInitial] = useState('')
   const [category, setCategory] = useState<Category>('otro')
   const [monthlyTarget, setMonthlyTarget] = useState('')
+  const [savingsPeriod, setSavingsPeriod] = useState<'none'|'monthly'|'weekly'>('none')
   const [description, setDescription] = useState('')
   const [targetDate, setTargetDate] = useState('')
   const [currency, setCurrency] = useState('€')
@@ -716,7 +776,9 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
     const e = validate()
     setErrors(e)
     if (Object.keys(e).length > 0) return
-    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency, category, monthly_target: monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null, description: description.trim() || null, target_date: targetDate || null })
+    const mt = savingsPeriod !== 'none' && monthlyTarget && parseFloat(monthlyTarget) > 0 ? parseFloat(monthlyTarget) : null
+    const sp = savingsPeriod !== 'none' && mt ? savingsPeriod : null
+    onCreate({ name: name.trim(), emoji, color, target_price: parseFloat(price), saved_amount: parseFloat(initial) || 0, currency, category, monthly_target: mt, savings_period: sp, description: description.trim() || null, target_date: targetDate || null })
   }
 
   const handleNumericChange = (val: string, setter: (v: string) => void, field: 'price' | 'initial') => {
@@ -807,18 +869,28 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
           })()}
         </div>
 
-        {/* Meta mensual */}
+        {/* Objetivo de ahorro periódico */}
         <div style={{ marginBottom: '16px', marginTop: '8px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
-            {t.monthlyTargetLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>(opcional)</span>
+            {locale === 'en' ? 'SAVINGS TARGET' : 'OBJETIVO DE AHORRO'} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{locale === 'en' ? '(optional)' : '(opcional)'}</span>
           </label>
-          <input type="text" inputMode="decimal" value={monthlyTarget}
-            onChange={(e) => { if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value) }}
-            {...{placeholder: t.placeholderMonthly}}
-            style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.3)', marginTop: '6px' }}>
-            {t.monthlyTargetHelper}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            {(['none', 'monthly', 'weekly'] as const).map(p => (
+              <button key={p} onClick={() => setSavingsPeriod(p)}
+                style={{ flex: 1, padding: '8px', borderRadius: '10px', fontSize: '11px', fontWeight: '700',
+                  background: savingsPeriod === p ? 'rgba(255,107,53,0.2)' : 'rgba(255,255,255,0.05)',
+                  border: `1px solid ${savingsPeriod === p ? 'rgba(255,107,53,0.5)' : 'rgba(255,255,255,0.1)'}`,
+                  color: savingsPeriod === p ? '#FF6B35' : 'rgba(255,255,255,0.4)', cursor: 'pointer' }}>
+                {p === 'none' ? (locale === 'en' ? 'None' : 'Ninguno') : p === 'monthly' ? (locale === 'en' ? '📅 Monthly' : '📅 Mensual') : (locale === 'en' ? '📆 Weekly' : '📆 Semanal')}
+              </button>
+            ))}
           </div>
+          {savingsPeriod !== 'none' && (
+            <input type="text" inputMode="decimal" value={monthlyTarget}
+              onChange={(e) => { if (e.target.value === '' || /^\d*\.?\d{0,2}$/.test(e.target.value)) setMonthlyTarget(e.target.value) }}
+              placeholder={locale === 'en' ? `Target per ${savingsPeriod === 'weekly' ? 'week' : 'month'} (e.g. 50)` : `Meta por ${savingsPeriod === 'weekly' ? 'semana' : 'mes'} (ej: 50)`}
+              style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
+          )}
         </div>
 
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
@@ -984,7 +1056,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits'> & { category: Category; monthly_target: number | null; description: string | null; target_date: string | null }) => {
+  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
@@ -998,7 +1070,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; description: string | null; target_date: string | null }) => {
+  const handleEditGoal = (goalId: string, updates: { name: string; emoji: string; color: string; target_price: number; category: string; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
       const updated = await updateGoalAction(goalId, updates)
       if (updated) {
@@ -1063,6 +1135,16 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
+  const handleTogglePublic = (goalId: string, current: boolean) => {
+    startTransition(async () => {
+      const ok = await toggleGoalPublicAction(goalId, !current)
+      if (ok) {
+        setGoals(prev => prev.map(g => g.id === goalId ? { ...g, is_public: !current } : g))
+        setSelectedGoal(prev => prev ? { ...prev, is_public: !current } : null)
+      }
+    })
+  }
+
   const handleDelete = (goalId: string) => {
     if (!confirm(t.deleteGoalConfirm)) return
     // Animate out first, then delete
@@ -1113,7 +1195,36 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
               <button onClick={() => setSelectedGoal(null)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>{t.back}</button>
-              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto' }}>
+              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
+                {/* 🌐 Public toggle */}
+                <button
+                  onClick={() => handleTogglePublic(selectedGoal.id, !!selectedGoal.is_public)}
+                  disabled={isPending}
+                  title={selectedGoal.is_public ? (locale === 'en' ? 'Make private' : 'Hacer privada') : (locale === 'en' ? 'Make public' : 'Hacer pública')}
+                  style={{
+                    background: selectedGoal.is_public ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
+                    border: `1px solid ${selectedGoal.is_public ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                    borderRadius: '10px', padding: '8px 12px',
+                    color: selectedGoal.is_public ? '#4ECDC4' : 'rgba(255,255,255,0.5)',
+                    fontSize: '13px', cursor: isPending ? 'wait' : 'pointer',
+                    display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600',
+                    opacity: isPending ? 0.6 : 1,
+                  }}>
+                  🌐 {selectedGoal.is_public ? (locale === 'en' ? 'Public' : 'Pública') : (locale === 'en' ? 'Private' : 'Privada')}
+                </button>
+                {/* Copy public link if public */}
+                {selectedGoal.is_public && (
+                  <button
+                    onClick={async () => {
+                      const url = `${window.location.origin}/goal/${selectedGoal.id}`
+                      if (navigator.share) { await navigator.share({ title: selectedGoal.name, url }) }
+                      else { await navigator.clipboard.writeText(url) }
+                    }}
+                    title={locale === 'en' ? 'Copy public link' : 'Copiar enlace público'}
+                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>
+                    🔗
+                  </button>
+                )}
                 <ShareButton goal={selectedGoal} t={t} />
                 <button onClick={() => setShowEditGoal(true)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{t.edit}</button>
               </div>
@@ -1197,7 +1308,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       {[
                         { icon: '💸', label: t.stat_deposits, value: deps.length },
-                        { icon: '📅', label: t.stat_days, value: daysSinceStart },
+                        { icon: '🔥', label: locale === 'en' ? 'STREAK' : 'RACHA', value: (() => { const s = calcStreak(selectedGoal); return s > 0 ? `${s}d` : '-' })() },
                         { icon: '⬆️', label: t.stat_max, value: hideAmounts ? '••••' : `€${maxDep.toLocaleString()}` },
                         { icon: '📊', label: t.stat_avg, value: hideAmounts ? '••••' : `€${avgDep.toFixed(2)}` },
                       ].map((s, i) => (
@@ -1250,9 +1361,9 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   borderRadius: '16px', padding: '16px 20px', marginBottom: '16px',
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px' }}>{t.monthlySection}</span>
+                    <span style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px' }}>{ms.period === 'weekly' ? (locale === 'en' ? '📅 THIS WEEK' : '📅 ESTA SEMANA') : t.monthlySection}</span>
                     <span style={{ fontSize: '12px', fontWeight: '700', color: ms.ok ? '#4ECDC4' : '#FFE066' }}>
-                      {ms.ok ? t.monthCompleted : (hideAmounts ? `•••• · ${t.daysRemaining(ms.daysLeft)}` : `€${ms.saved.toFixed(0)} / €${ms.target} · ${t.daysRemaining(ms.daysLeft)}`)}
+                      {ms.ok ? (ms.period === 'weekly' ? (locale === 'en' ? '✅ Week done!' : '✅ ¡Semana completada!') : t.monthCompleted) : (hideAmounts ? `•••• · ${t.daysRemaining(ms.daysLeft)}` : `€${ms.saved.toFixed(0)} / €${ms.target} · ${t.daysRemaining(ms.daysLeft)}`)}
                     </span>
                   </div>
                   <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: '100px', height: '6px', overflow: 'hidden' }}>
@@ -1262,6 +1373,40 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                       borderRadius: '100px', transition: 'width 0.8s ease',
                       boxShadow: ms.ok ? '0 0 8px rgba(78,205,196,0.5)' : '0 0 8px rgba(255,200,50,0.4)',
                     }}/>
+                  </div>
+                </div>
+              )
+            })()}
+
+            {/* Streak widget */}
+            {(() => {
+              const s = calcStreak(selectedGoal)
+              if (s < 2) return null
+              const isHot = s >= 7
+              const flames = Math.min(s, 14) // cap visual flames at 14
+              return (
+                <div style={{
+                  background: isHot ? 'rgba(255,107,53,0.08)' : 'rgba(255,160,50,0.06)',
+                  border: `1px solid ${isHot ? 'rgba(255,107,53,0.25)' : 'rgba(255,160,50,0.2)'}`,
+                  borderRadius: '16px', padding: '16px 20px', marginBottom: '16px',
+                  display: 'flex', alignItems: 'center', gap: '16px',
+                }}>
+                  <div style={{ textAlign: 'center', minWidth: '56px' }}>
+                    <div style={{ fontSize: '32px', animation: isHot ? 'pulse 1.5s ease-in-out infinite' : 'none', lineHeight: 1 }}>🔥</div>
+                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '22px', color: isHot ? '#FF6B35' : '#FFB347', lineHeight: 1, marginTop: '4px' }}>{s}</div>
+                    <div style={{ fontSize: '9px', color: 'rgba(255,255,255,0.35)', fontWeight: '700', letterSpacing: '0.5px' }}>{locale === 'en' ? 'DAYS' : 'DÍAS'}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', color: isHot ? '#FF6B35' : '#FFB347', marginBottom: '6px' }}>
+                      {locale === 'en'
+                        ? (isHot ? `🏆 ${s}-day streak! You're on fire!` : `🔥 ${s}-day saving streak`)
+                        : (isHot ? `🏆 ¡${s} días seguidos! ¡Eres un crack!` : `🔥 Racha de ${s} días ahorrando`)}
+                    </div>
+                    <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' as const }}>
+                      {Array.from({ length: flames }).map((_, i) => (
+                        <span key={i} style={{ fontSize: '12px', opacity: 0.6 + (i / flames) * 0.4 }}>🔥</span>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )

@@ -15,6 +15,8 @@ export type Database = {
           currency: string
           category: string
           monthly_target: number | null
+          is_public: boolean
+          savings_period: 'monthly' | 'weekly' | null
           description: string | null
           target_date: string | null
           created_at: string
@@ -31,6 +33,8 @@ export type Database = {
           currency?: string
           category?: string
           monthly_target?: number | null
+          is_public?: boolean
+          savings_period?: 'monthly' | 'weekly' | null
           description?: string | null
           target_date?: string | null
           created_at?: string
@@ -45,6 +49,8 @@ export type Database = {
           currency?: string
           category?: string
           monthly_target?: number | null
+          is_public?: boolean
+          savings_period?: 'monthly' | 'weekly' | null
           description?: string | null
           target_date?: string | null
           updated_at?: string

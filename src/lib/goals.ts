@@ -51,6 +51,8 @@ export async function updateGoal(id: string, updates: {
   currency?: string
   category?: string
   monthly_target?: number | null
+  savings_period?: 'monthly' | 'weekly' | null
+  is_public?: boolean
 }): Promise<Goal | null> {
   const supabase = await createClient()
   const { data, error } = await supabase
@@ -156,4 +158,27 @@ export async function getAllSubscriptionsWithGoals(): Promise<{
   }))
 
   return results
+}
+
+export async function getPublicGoal(id: string): Promise<Goal | null> {
+  // Uses anon key — RLS policy allows reading public goals without auth
+  const { createClient: createBrowserClient } = await import('@/lib/supabase/client')
+  const supabase = createBrowserClient()
+  const { data, error } = await supabase
+    .from('goals')
+    .select('*, deposits(*)')
+    .eq('id', id)
+    .eq('is_public', true)
+    .single()
+  if (error) return null
+  return data as Goal
+}
+
+export async function toggleGoalPublic(id: string, isPublic: boolean): Promise<boolean> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('goals')
+    .update({ is_public: isPublic, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  return !error
 }

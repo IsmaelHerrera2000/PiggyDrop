@@ -15,6 +15,7 @@ export async function createGoalAction(goalData: {
   currency: string
   category: string
   monthly_target?: number | null
+  savings_period?: 'monthly' | 'weekly' | null
   description?: string | null
   target_date?: string | null
 }): Promise<Goal | null> {
@@ -31,6 +32,7 @@ export async function createGoalAction(goalData: {
     currency: goalData.currency,
     category: goalData.category,
     monthly_target: goalData.monthly_target ?? null,
+    savings_period: goalData.savings_period ?? null,
     description: goalData.description ?? null,
     target_date: goalData.target_date ?? null,
   })
@@ -58,6 +60,7 @@ export async function updateGoalAction(
     currency?: string
     category?: string
     monthly_target?: number | null
+    savings_period?: 'monthly' | 'weekly' | null
   }
 ): Promise<Goal | null> {
   const goal = await updateGoal(goalId, updates)
@@ -104,4 +107,14 @@ export async function subscribePushAction(sub: {
 
 export async function unsubscribePushAction(endpoint: string): Promise<boolean> {
   return deletePushSubscription(endpoint)
+}
+
+export async function toggleGoalPublicAction(goalId: string, isPublic: boolean): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const { toggleGoalPublic } = await import('@/lib/goals')
+  const ok = await toggleGoalPublic(goalId, isPublic)
+  revalidatePath('/dashboard')
+  return ok
 }
