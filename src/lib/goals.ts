@@ -182,3 +182,12 @@ export async function toggleGoalPublic(id: string, isPublic: boolean): Promise<b
     .eq('id', id)
   return !error
 }
+
+export async function toggleGoalShowAmounts(id: string, show: boolean): Promise<boolean> {
+  const supabase = await createClient()
+  const { error } = await supabase
+    .from('goals')
+    .update({ public_show_amounts: show, updated_at: new Date().toISOString() })
+    .eq('id', id)
+  return !error
+}

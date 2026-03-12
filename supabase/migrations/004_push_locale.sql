@@ -14,9 +14,19 @@ UPDATE goals SET savings_period = 'monthly' WHERE monthly_target IS NOT NULL AND
 UPDATE goals SET savings_period = NULL WHERE monthly_target IS NULL OR monthly_target = 0;
 
 
+-- Recalcula saved_amount de todas las metas a partir de sus depósitos reales
+-- Ejecutar en Supabase SQL Editor UNA SOLA VEZ
 
+UPDATE goals
+SET saved_amount = (
+  SELECT COALESCE(SUM(amount), 0)
+  FROM deposits
+  WHERE deposits.goal_id = goals.id
+);
 
-
+-- Migration: add public_show_amounts to goals
+ALTER TABLE goals
+  ADD COLUMN IF NOT EXISTS public_show_amounts BOOLEAN DEFAULT false NOT NULL;
 
 
 

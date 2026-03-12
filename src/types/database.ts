@@ -16,6 +16,7 @@ export type Database = {
           category: string
           monthly_target: number | null
           is_public: boolean
+          public_show_amounts: boolean
           savings_period: 'monthly' | 'weekly' | null
           description: string | null
           target_date: string | null
@@ -34,6 +35,7 @@ export type Database = {
           category?: string
           monthly_target?: number | null
           is_public?: boolean
+          public_show_amounts?: boolean
           savings_period?: 'monthly' | 'weekly' | null
           description?: string | null
           target_date?: string | null
@@ -50,6 +52,7 @@ export type Database = {
           category?: string
           monthly_target?: number | null
           is_public?: boolean
+          public_show_amounts?: boolean
           savings_period?: 'monthly' | 'weekly' | null
           description?: string | null
           target_date?: string | null

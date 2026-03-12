@@ -129,9 +129,16 @@ export default async function PublicGoalPage({ params }: Props) {
               transition: 'width 1s ease',
             }}/>
           </div>
-          <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.25)', textAlign: 'right' }}>
-            {goal.currency ?? '€'}??? de {goal.currency ?? '€'}??? {/* amounts hidden for privacy */}
-          </div>
+          {goal.public_show_amounts ? (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
+              <span style={{ color: goal.color, fontWeight: '700' }}>{goal.currency ?? '€'}{goal.saved_amount.toLocaleString('es-ES')}</span>
+              <span>de {goal.currency ?? '€'}{goal.target_price.toLocaleString('es-ES')}</span>
+            </div>
+          ) : (
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', textAlign: 'right', marginTop: '4px' }}>
+              importes privados
+            </div>
+          )}
         </div>
 
         {/* Stats grid */}
@@ -185,7 +192,9 @@ export default async function PublicGoalPage({ params }: Props) {
                     </div>
                   </div>
                 </div>
-                <div style={{ fontSize: '13px', fontWeight: '800', color: goal.color }}>+{goal.currency ?? '€'}•••</div>
+                <div style={{ fontSize: '13px', fontWeight: '800', color: goal.color }}>
+                  {goal.public_show_amounts ? `+${goal.currency ?? '€'}${d.amount.toLocaleString('es-ES')}` : `+${goal.currency ?? '€'}•••`}
+                </div>
               </div>
             ))}
           </div>

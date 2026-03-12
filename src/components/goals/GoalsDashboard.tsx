@@ -3,7 +3,7 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import type { Goal, Deposit } from '@/types/database'
-import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction, toggleGoalPublicAction } from '@/app/dashboard/actions'
+import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction, toggleGoalPublicAction, toggleGoalShowAmountsAction } from '@/app/dashboard/actions'
 import ProgressChart from '@/components/goals/ProgressChart'
 import { detectLocale, getT } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
@@ -738,7 +738,7 @@ function AddDepositModal({ goal, onClose, onDeposit, isPending, locale }: {
 // ── NewGoalModal ─────────────────────────────────────────────
 function NewGoalModal({ onClose, onCreate, isPending, locale }: {
   onClose: () => void
-  onCreate: (goal: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; description: string | null; target_date: string | null }) => void
+  onCreate: (goal: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public' | 'public_show_amounts'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; public_show_amounts?: boolean; description: string | null; target_date: string | null }) => void
   isPending: boolean
   locale: Locale
 }) {
@@ -1056,7 +1056,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     })
   }
 
-  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; description: string | null; target_date: string | null }) => {
+  const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public' | 'public_show_amounts'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; public_show_amounts?: boolean; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
@@ -1139,6 +1139,16 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           saved_amount: Math.max(0, prev.saved_amount - amount),
           deposits: (prev.deposits ?? []).filter(d => d.id !== depositId),
         } : null)
+      }
+    })
+  }
+
+  const handleToggleShowAmounts = (goalId: string, current: boolean) => {
+    startTransition(async () => {
+      const ok = await toggleGoalShowAmountsAction(goalId, !current)
+      if (ok) {
+        setGoals(prev => prev.map(g => g.id === goalId ? { ...g, public_show_amounts: !current } : g))
+        setSelectedGoal(prev => prev ? { ...prev, public_show_amounts: !current } : null)
       }
     })
   }
@@ -1231,6 +1241,25 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     title={locale === 'en' ? 'Copy public link' : 'Copiar enlace público'}
                     style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>
                     🔗
+                  </button>
+                )}
+                {/* Show amounts toggle — only visible when goal is public */}
+                {selectedGoal.is_public && (
+                  <button
+                    onClick={() => handleToggleShowAmounts(selectedGoal.id, !!selectedGoal.public_show_amounts)}
+                    disabled={isPending}
+                    title={selectedGoal.public_show_amounts
+                      ? (locale === 'en' ? 'Hide amounts on public page' : 'Ocultar importes en página pública')
+                      : (locale === 'en' ? 'Show amounts on public page' : 'Mostrar importes en página pública')}
+                    style={{
+                      background: selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.13)' : 'rgba(255,255,255,0.06)',
+                      border: `1px solid ${selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.4)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: '10px', padding: '8px 12px',
+                      color: selectedGoal.public_show_amounts ? '#FFE066' : 'rgba(255,255,255,0.4)',
+                      fontSize: '13px', cursor: isPending ? 'wait' : 'pointer',
+                      opacity: isPending ? 0.6 : 1,
+                    }}>
+                    {selectedGoal.public_show_amounts ? '💰' : '🙈'}
                   </button>
                 )}
                 <ShareButton goal={selectedGoal} t={t} />
