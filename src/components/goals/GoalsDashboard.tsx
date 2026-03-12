@@ -1060,11 +1060,19 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
-        const initialDeposit: Deposit | null = goalData.saved_amount > 0 ? {
+        // El trigger de Supabase ya actualizó saved_amount — usamos goalData.saved_amount
+        // para el depósito local optimista, y corregimos saved_amount en el estado local
+        const initialAmount = goalData.saved_amount
+        const initialDeposit: Deposit | null = initialAmount > 0 ? {
           id: Date.now().toString(), goal_id: newGoal.id, user_id: userId,
-          amount: goalData.saved_amount, note: 'Ahorro inicial', created_at: new Date().toISOString(),
+          amount: initialAmount, note: 'Ahorro inicial', created_at: new Date().toISOString(),
         } : null
-        setGoals((prev) => [{ ...newGoal, category: goalData.category, deposits: initialDeposit ? [initialDeposit] : [] }, ...prev])
+        setGoals((prev) => [{
+          ...newGoal,
+          saved_amount: initialAmount, // corrige el 0 que devuelve el server
+          category: goalData.category,
+          deposits: initialDeposit ? [initialDeposit] : [],
+        }, ...prev])
       }
       setShowNewGoal(false)
     })

@@ -28,7 +28,7 @@ export async function createGoalAction(goalData: {
     emoji: goalData.emoji,
     color: goalData.color,
     target_price: goalData.target_price,
-    saved_amount: goalData.saved_amount,
+    saved_amount: 0, // El trigger de Supabase recalcula al insertar el depósito inicial
     currency: goalData.currency,
     category: goalData.category,
     monthly_target: goalData.monthly_target ?? null,
