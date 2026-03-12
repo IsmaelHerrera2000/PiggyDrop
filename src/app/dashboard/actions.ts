@@ -118,3 +118,13 @@ export async function toggleGoalPublicAction(goalId: string, isPublic: boolean):
   revalidatePath('/dashboard')
   return ok
 }
+
+export async function toggleGoalShowAmountsAction(goalId: string, show: boolean): Promise<boolean> {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return false
+  const { toggleGoalShowAmounts } = await import('@/lib/goals')
+  const ok = await toggleGoalShowAmounts(goalId, show)
+  revalidatePath('/dashboard')
+  return ok
+}
