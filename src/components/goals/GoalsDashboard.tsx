@@ -1515,7 +1515,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     {t.of} {hideAmounts ? '••••' : `€${totalTarget.toLocaleString('es-ES')}`} · {goals.length} {goals.length === 1 ? t.goal : t.goals}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center', marginTop: '16px' }}>
                   {mounted && 'Notification' in window && (
                     <button
                       onClick={() => subscribed ? unsubscribePush() : subscribePush()}
@@ -1530,7 +1530,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
                   )}
                   <button onClick={() => setHideAmounts(h => !h)} title={hideAmounts ? t.showAmounts : t.hideAmounts} style={{ background: hideAmounts ? 'rgba(255,107,53,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${hideAmounts ? 'rgba(255,107,53,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '12px', padding: '10px 12px', color: hideAmounts ? '#FF6B35' : 'rgba(255,255,255,0.5)', fontSize: '16px', cursor: 'pointer' }}>👁️</button>
-                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '14px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)', flex: 1, whiteSpace: 'nowrap' }}>{t.newGoal}</button>
+                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)', marginLeft: 'auto' }}>{t.newGoal}</button>
                 </div>
               </div>
 
