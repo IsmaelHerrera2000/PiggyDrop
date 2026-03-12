@@ -178,7 +178,7 @@ const translations = {
     targetDateHelper:     '📅 Te calcularemos cuánto ahorrar al mes para llegar a tiempo',
     needPerMonth:         (amt: number) => `Necesitas €${amt}/mes para llegar a tiempo`,
     targetDatePassed:     '⚠️ Fecha pasada',
-    shareGoal:            '📤 Compartir meta',
+    shareGoal:            ' Compartir meta',
     shareCopied:          '✅ ¡Copiado!',
     shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
       `¡Llevo un ${pct}% de mi meta ${emoji} ${name}! 💰 €${saved} de €${target} ahorrados con PiggyDrop 🐷`,
@@ -365,7 +365,7 @@ const translations = {
     targetDateHelper:     "📅 We'll calculate how much you need to save per month",
     needPerMonth:         (amt: number) => `You need €${amt}/month to reach your goal in time`,
     targetDatePassed:     '⚠️ Date passed',
-    shareGoal:            '📤 Share goal',
+    shareGoal:            ' Share goal',
     shareCopied:          '✅ Copied!',
     shareText:            (name: string, emoji: string, pct: number, saved: number, target: number) =>
       `I'm ${pct}% of the way to my ${emoji} ${name} goal! 💰 €${saved} of €${target} saved with PiggyDrop 🐷`,

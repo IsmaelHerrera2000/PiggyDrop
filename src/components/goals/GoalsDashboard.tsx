@@ -1195,23 +1195,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
   return (
     <>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900&display=swap');
-        @keyframes modalIn { from { transform: scale(0.85) translateY(20px); opacity: 0; } to { transform: scale(1) translateY(0); opacity: 1; } }
-        @keyframes fadeUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-        @keyframes popIn { from { transform: scale(0.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-        @keyframes slideInCard { from { transform: translateX(-16px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-        @keyframes barFill { from { width: 0%; } to { width: var(--target-w); } }
-        @keyframes pulse { 0%,100% { box-shadow: 0 12px 32px var(--btn-shadow); } 50% { box-shadow: 0 16px 40px var(--btn-shadow), 0 0 0 6px var(--btn-glow); } }
-        @keyframes countUp { from { opacity: 0; transform: translateY(8px) scale(0.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
-        @keyframes shimmer { 0% { background-position: -200% center; } 100% { background-position: 200% center; } }
-        @keyframes depositPop { 0% { transform: scale(0.8) translateY(-8px); opacity: 0; } 70% { transform: scale(1.04); } 100% { transform: scale(1) translateY(0); opacity: 1; } }
-        input::placeholder { color: rgba(255,255,255,0.25); }
-        .goal-card:hover { transform: translateY(-2px); }
-        .goal-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
-      `}</style>
-
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
       {showNewGoal && <NewGoalModal onClose={() => setShowNewGoal(false)} onCreate={handleCreateGoal} isPending={isPending} locale={locale}/>}
       {showDeposit && selectedGoal && <AddDepositModal goal={selectedGoal} onClose={() => setShowDeposit(false)} onDeposit={handleDeposit} isPending={isPending} locale={locale}/>}
@@ -1222,7 +1205,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         {filter === 'history' ? (
           <GlobalHistory goals={goals} onBack={() => setFilter('all')} onDeleteDeposit={handleDeleteDeposit} onEditDeposit={setEditingDeposit} isPending={isPending} locale={locale} hideAmounts={hideAmounts}/>
         ) : selectedGoal ? (
-          <div style={{ animation: 'fadeUp 0.3s ease' }} onClick={() => setShowDetailMenu(false)}>
+          <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
               {/* ← Volver */}
               <button onClick={() => { setSelectedGoal(null); setShowDetailMenu(false) }}
@@ -1234,7 +1217,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 {/* ✏️ Editar — siempre visible */}
                 <button onClick={() => { setShowEditGoal(true); setShowDetailMenu(false) }}
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-                  ✏️ {t.edit}
+                  {t.edit}
                 </button>
 
                 {/* ⋯ Menú de opciones adicionales */}
@@ -1243,8 +1226,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                   ···
                 </button>
 
-                {/* Dropdown */}
+                {/* Dropdown backdrop + menu */}
                 {showDetailMenu && (
+                  <>
+                  <div onClick={() => setShowDetailMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }}/>
                   <div onClick={e => e.stopPropagation()}
                     style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: '#1a1a25', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '8px', zIndex: 200, minWidth: '220px', boxShadow: '0 16px 48px rgba(0,0,0,0.5)', animation: 'modalIn 0.15s ease' }}>
 
@@ -1279,6 +1264,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                       </button>
                     )}
                   </div>
+                  </>
                 )}
               </div>
             </div>
