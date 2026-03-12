@@ -333,7 +333,7 @@ function EditDepositModal({ deposit, onClose, onSave, isPending, locale }: {
 }
 
 // ── ShareButton ──────────────────────────────────────────────
-function ShareButton({ goal, t }: { goal: Goal; t: ReturnType<typeof getT> }) {
+function ShareButton({ goal, t, menuStyle }: { goal: Goal; t: ReturnType<typeof getT>; menuStyle?: boolean }) {
   const [copied, setCopied] = useState(false)
   const pct = Math.min(100, Math.round((goal.saved_amount / goal.target_price) * 100))
   const handleShare = async () => {
@@ -348,6 +348,17 @@ function ShareButton({ goal, t }: { goal: Goal; t: ReturnType<typeof getT> }) {
       }
     } catch {}
   }
+  if (menuStyle) return (
+    <button onClick={handleShare} style={{
+      width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '10px 12px', borderRadius: '10px',
+      background: copied ? 'rgba(78,205,196,0.1)' : 'transparent',
+      border: 'none', color: copied ? '#4ECDC4' : 'rgba(255,255,255,0.6)',
+      fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const,
+    }}>
+      <span>📤</span><span>{copied ? t.shareCopied : t.shareGoal}</span>
+    </button>
+  )
   return (
     <button onClick={handleShare} style={{
       background: copied ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
@@ -991,6 +1002,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const [showNewGoal, setShowNewGoal] = useState(false)
   const [showDeposit, setShowDeposit] = useState(false)
   const [showEditGoal, setShowEditGoal] = useState(false)
+  const [showDetailMenu, setShowDetailMenu] = useState(false)
   const [showConfetti, setShowConfetti] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [sort, setSort] = useState<'recent' | 'pct' | 'name' | 'amount'>('recent')
@@ -1210,60 +1222,64 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         {filter === 'history' ? (
           <GlobalHistory goals={goals} onBack={() => setFilter('all')} onDeleteDeposit={handleDeleteDeposit} onEditDeposit={setEditingDeposit} isPending={isPending} locale={locale} hideAmounts={hideAmounts}/>
         ) : selectedGoal ? (
-          <div style={{ animation: 'fadeUp 0.3s ease' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-              <button onClick={() => setSelectedGoal(null)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>{t.back}</button>
-              <div style={{ display: 'flex', gap: '8px', marginLeft: 'auto', alignItems: 'center' }}>
-                {/* 🌐 Public toggle */}
-                <button
-                  onClick={() => handleTogglePublic(selectedGoal.id, !!selectedGoal.is_public)}
-                  disabled={isPending}
-                  title={selectedGoal.is_public ? (locale === 'en' ? 'Make private' : 'Hacer privada') : (locale === 'en' ? 'Make public' : 'Hacer pública')}
-                  style={{
-                    background: selectedGoal.is_public ? 'rgba(78,205,196,0.15)' : 'rgba(255,255,255,0.06)',
-                    border: `1px solid ${selectedGoal.is_public ? 'rgba(78,205,196,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                    borderRadius: '10px', padding: '8px 12px',
-                    color: selectedGoal.is_public ? '#4ECDC4' : 'rgba(255,255,255,0.5)',
-                    fontSize: '13px', cursor: isPending ? 'wait' : 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '5px', fontWeight: '600',
-                    opacity: isPending ? 0.6 : 1,
-                  }}>
-                  🌐 {selectedGoal.is_public ? (locale === 'en' ? 'Public' : 'Pública') : (locale === 'en' ? 'Private' : 'Privada')}
+          <div style={{ animation: 'fadeUp 0.3s ease' }} onClick={() => setShowDetailMenu(false)}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
+              {/* ← Volver */}
+              <button onClick={() => { setSelectedGoal(null); setShowDetailMenu(false) }}
+                style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {t.back}
+              </button>
+
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
+                {/* ✏️ Editar — siempre visible */}
+                <button onClick={() => { setShowEditGoal(true); setShowDetailMenu(false) }}
+                  style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                  ✏️ {t.edit}
                 </button>
-                {/* Copy public link if public */}
-                {selectedGoal.is_public && (
-                  <button
-                    onClick={async () => {
-                      const url = `${window.location.origin}/goal/${selectedGoal.id}`
-                      if (navigator.share) { await navigator.share({ title: selectedGoal.name, url }) }
-                      else { await navigator.clipboard.writeText(url) }
-                    }}
-                    title={locale === 'en' ? 'Copy public link' : 'Copiar enlace público'}
-                    style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer' }}>
-                    🔗
-                  </button>
+
+                {/* ⋯ Menú de opciones adicionales */}
+                <button onClick={() => setShowDetailMenu(m => !m)}
+                  style={{ background: showDetailMenu ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '16px', cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
+                  ···
+                </button>
+
+                {/* Dropdown */}
+                {showDetailMenu && (
+                  <div onClick={e => e.stopPropagation()}
+                    style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: '#1a1a25', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '8px', zIndex: 200, minWidth: '220px', boxShadow: '0 16px 48px rgba(0,0,0,0.5)', animation: 'modalIn 0.15s ease' }}>
+
+                    {/* Compartir */}
+                    <ShareButton goal={selectedGoal} t={t} menuStyle />
+
+                    {/* Separador */}
+                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '6px 0' }}/>
+
+                    {/* Público/Privado */}
+                    <button onClick={() => { handleTogglePublic(selectedGoal.id, !!selectedGoal.is_public); setShowDetailMenu(false) }} disabled={isPending}
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: selectedGoal.is_public ? 'rgba(78,205,196,0.1)' : 'transparent', border: 'none', color: selectedGoal.is_public ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
+                      <span>🌐</span>
+                      <span style={{ flex: 1 }}>{selectedGoal.is_public ? (locale === 'en' ? 'Make private' : 'Hacer privada') : (locale === 'en' ? 'Make public' : 'Hacer pública')}</span>
+                      {selectedGoal.is_public && <span style={{ fontSize: '10px', background: 'rgba(78,205,196,0.2)', color: '#4ECDC4', padding: '2px 6px', borderRadius: '6px' }}>{locale === 'en' ? 'PUBLIC' : 'PÚBLICA'}</span>}
+                    </button>
+
+                    {/* Copiar enlace — solo si es pública */}
+                    {selectedGoal.is_public && (
+                      <button onClick={async () => { const url = `${window.location.origin}/goal/${selectedGoal.id}`; if (navigator.share) { await navigator.share({ title: selectedGoal.name, url }) } else { await navigator.clipboard.writeText(url) }; setShowDetailMenu(false) }}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
+                        <span>🔗</span><span>{locale === 'en' ? 'Copy public link' : 'Copiar enlace'}</span>
+                      </button>
+                    )}
+
+                    {/* Mostrar/ocultar importes en página pública */}
+                    {selectedGoal.is_public && (
+                      <button onClick={() => { handleToggleShowAmounts(selectedGoal.id, !!selectedGoal.public_show_amounts); setShowDetailMenu(false) }} disabled={isPending}
+                        style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.08)' : 'transparent', border: 'none', color: selectedGoal.public_show_amounts ? '#FFE066' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
+                        <span>{selectedGoal.public_show_amounts ? '💰' : '🙈'}</span>
+                        <span>{selectedGoal.public_show_amounts ? (locale === 'en' ? 'Hide amounts publicly' : 'Ocultar importes') : (locale === 'en' ? 'Show amounts publicly' : 'Mostrar importes')}</span>
+                      </button>
+                    )}
+                  </div>
                 )}
-                {/* Show amounts toggle — only visible when goal is public */}
-                {selectedGoal.is_public && (
-                  <button
-                    onClick={() => handleToggleShowAmounts(selectedGoal.id, !!selectedGoal.public_show_amounts)}
-                    disabled={isPending}
-                    title={selectedGoal.public_show_amounts
-                      ? (locale === 'en' ? 'Hide amounts on public page' : 'Ocultar importes en página pública')
-                      : (locale === 'en' ? 'Show amounts on public page' : 'Mostrar importes en página pública')}
-                    style={{
-                      background: selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.13)' : 'rgba(255,255,255,0.06)',
-                      border: `1px solid ${selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.4)' : 'rgba(255,255,255,0.1)'}`,
-                      borderRadius: '10px', padding: '8px 12px',
-                      color: selectedGoal.public_show_amounts ? '#FFE066' : 'rgba(255,255,255,0.4)',
-                      fontSize: '13px', cursor: isPending ? 'wait' : 'pointer',
-                      opacity: isPending ? 0.6 : 1,
-                    }}>
-                    {selectedGoal.public_show_amounts ? '💰' : '🙈'}
-                  </button>
-                )}
-                <ShareButton goal={selectedGoal} t={t} />
-                <button onClick={() => setShowEditGoal(true)} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>{t.edit}</button>
               </div>
             </div>
             {/* ── Detail hero card ── */}
