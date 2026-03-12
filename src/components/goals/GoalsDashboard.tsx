@@ -1505,10 +1505,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', background: 'radial-gradient(circle, rgba(255,107,53,0.15) 0%, transparent 70%)', pointerEvents: 'none' }}/>
               <div style={{ position: 'absolute', bottom: '-30px', left: '20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)', pointerEvents: 'none' }}/>
 
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', marginBottom: '20px' }}>
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1.5px', marginBottom: '6px' }}>{t.totalSaved}</div>
-                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '38px', color: '#f0f0f5', lineHeight: 1, animation: 'countUp 0.5s ease', letterSpacing: '-1px' }}>
+                  <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '36px', color: '#f0f0f5', lineHeight: 1, animation: 'countUp 0.5s ease', letterSpacing: '-1px', wordBreak: 'break-all' }}>
                     {hideAmounts ? '••••' : `€${totalSaved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`}
                   </div>
                   <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.35)', marginTop: '6px' }}>
@@ -1530,7 +1530,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     >{pushLoading ? '⏳' : subscribed ? '🔔' : '🔕'}</button>
                   )}
                   <button onClick={() => setHideAmounts(h => !h)} title={hideAmounts ? t.showAmounts : t.hideAmounts} style={{ background: hideAmounts ? 'rgba(255,107,53,0.15)' : 'rgba(255,255,255,0.06)', border: `1px solid ${hideAmounts ? 'rgba(255,107,53,0.4)' : 'rgba(255,255,255,0.1)'}`, borderRadius: '12px', padding: '10px 12px', color: hideAmounts ? '#FF6B35' : 'rgba(255,255,255,0.5)', fontSize: '16px', cursor: 'pointer' }}>👁️</button>
-                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '13px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)' }}>{t.newGoal}</button>
+                  <button onClick={() => setShowNewGoal(true)} style={{ background: 'linear-gradient(135deg, #FF6B35, #FF8FAB)', border: 'none', borderRadius: '12px', padding: '10px 18px', color: '#fff', fontFamily: "'Nunito', sans-serif", fontWeight: '800', fontSize: '14px', cursor: 'pointer', boxShadow: '0 8px 20px rgba(255,107,53,0.35)', flex: 1, whiteSpace: 'nowrap' }}>{t.newGoal}</button>
                 </div>
               </div>
 
