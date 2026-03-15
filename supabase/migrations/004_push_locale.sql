@@ -28,7 +28,31 @@ SET saved_amount = (
 ALTER TABLE goals
   ADD COLUMN IF NOT EXISTS public_show_amounts BOOLEAN DEFAULT false NOT NULL;
 
+-- Migration 009: FCM tokens table
+-- Ejecutar en Supabase SQL Editor
 
+CREATE TABLE IF NOT EXISTS fcm_tokens (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  token      TEXT NOT NULL UNIQUE,
+  locale     TEXT NOT NULL DEFAULT 'es',
+  platform   TEXT NOT NULL DEFAULT 'web', -- 'web' | 'android' | 'ios'
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Index for fast lookups by user
+CREATE INDEX IF NOT EXISTS fcm_tokens_user_id_idx ON fcm_tokens(user_id);
+
+-- RLS
+ALTER TABLE fcm_tokens ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own FCM tokens" ON fcm_tokens
+  FOR ALL USING (auth.uid() = user_id);
+
+-- Service role can read all (for cron job)
+CREATE POLICY "Service role reads all FCM tokens" ON fcm_tokens
+  FOR SELECT USING (auth.role() = 'service_role');
 
 
 

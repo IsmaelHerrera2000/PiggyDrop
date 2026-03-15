@@ -1016,6 +1016,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   useEffect(() => {
     setMounted(true)
     setLocale(detectLocale())
+    // Registrar Firebase Messaging Service Worker
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {})
+    }
   }, [])
   const t = getT(locale)
 
@@ -1070,7 +1074,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
   const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public' | 'public_show_amounts'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; public_show_amounts?: boolean; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
-      const newGoal = await createGoalAction(goalData)
+      const newGoal = await createGoalAction({ ...goalData, locale })
       if (newGoal) {
         // El trigger de Supabase ya actualizó saved_amount — usamos goalData.saved_amount
         // para el depósito local optimista, y corregimos saved_amount en el estado local

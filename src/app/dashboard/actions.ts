@@ -18,6 +18,7 @@ export async function createGoalAction(goalData: {
   savings_period?: 'monthly' | 'weekly' | null
   description?: string | null
   target_date?: string | null
+  locale?: string
 }): Promise<Goal | null> {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -44,6 +45,21 @@ export async function createGoalAction(goalData: {
       amount: goalData.saved_amount,
       note: 'Ahorro inicial',
     })
+  }
+
+  // 🔔 Notificación FCM — meta creada
+  if (goal) {
+    const remaining = goalData.target_price - (goalData.saved_amount ?? 0)
+    const locale = goalData.locale ?? 'es'
+    const isEN = locale === 'en'
+    const title = isEN
+      ? `🎯 New goal created!`
+      : `🎯 ¡Nueva meta creada!`
+    const body = isEN
+      ? `"${goalData.name}" — ${goalData.currency ?? '€'}${remaining.toLocaleString('en')} to go. You got this! 💪`
+      : `"${goalData.name}" — Solo faltan ${goalData.currency ?? '€'}${remaining.toLocaleString('es-ES')} para poder comprarlo. ¡Tú puedes! 💪`
+    const { sendNotificationToUser } = await import('@/lib/fcm-server')
+    await sendNotificationToUser(user.id, title, body, { url: '/dashboard' })
   }
 
   revalidatePath('/dashboard')
