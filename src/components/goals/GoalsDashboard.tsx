@@ -130,9 +130,17 @@ function usePushNotifications() {
       setPermission(perm)
       if (perm !== 'granted') { setLoading(false); return false }
 
-      // 2. Registrar el SW de Firebase y esperar a que esté completamente activo.
-      //    navigator.serviceWorker.ready resuelve con la registration activa,
-      //    garantizando que .active (y su .pushManager) no sea null.
+      // 2. Eliminar el SW automático de Firebase (scope /firebase-cloud-messaging-push-scope)
+      //    que Firebase crea internamente y que NO tiene el handler onBackgroundMessage.
+      //    Si ese SW genera el token, los mensajes llegan a Firebase pero nunca se muestran.
+      const allRegs = await navigator.serviceWorker.getRegistrations()
+      for (const reg of allRegs) {
+        if (reg.scope?.includes('firebase-cloud-messaging-push-scope')) {
+          await reg.unregister()
+        }
+      }
+
+      // 3. Registrar nuestro SW con el handler correcto y esperar a que esté activo
       await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
       const swReg = await navigator.serviceWorker.ready
 
