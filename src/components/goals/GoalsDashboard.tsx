@@ -996,6 +996,18 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   useEffect(() => {
     setMounted(true)
     setLocale(detectLocale())
+    if ('serviceWorker' in navigator) {
+      // Desregistrar el SW antiguo (sw.js) si existe
+      navigator.serviceWorker.getRegistrations().then(regs => {
+        regs.forEach(reg => {
+          if (reg.active?.scriptURL?.includes('/sw.js')) {
+            reg.unregister()
+          }
+        })
+      })
+      // Registrar el SW de Firebase
+      navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {})
+    }
   }, [])
   const t = getT(locale)
 
