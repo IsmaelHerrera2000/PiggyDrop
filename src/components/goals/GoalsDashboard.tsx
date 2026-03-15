@@ -109,6 +109,8 @@ function periodStatus(goal: Goal): { saved: number; target: number; ok: boolean;
 const monthlyStatus = periodStatus
 
 // ── FCM Push notifications hook ──────────────────────────────
+// Usa el SW de Firebase directamente para obtener el token FCM
+// sin conflicto con otros service workers
 function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState(false)
@@ -126,10 +128,27 @@ function usePushNotifications() {
   const subscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true)
     try {
-      const { getFCMToken } = await import('@/lib/firebase')
-      const token = await getFCMToken()
+      // 1. Pedir permiso de notificaciones
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== 'granted') { setLoading(false); return false }
+
+      // 2. Obtener el registration del SW de Firebase (ya registrado en useEffect)
+      const swReg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
+        ?? await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+
+      // 3. Obtener token FCM usando el SW ya registrado
+      const { getMessaging, getToken } = await import('firebase/messaging')
+      const { getFirebaseApp } = await import('@/lib/firebase')
+      const messaging = getMessaging(getFirebaseApp())
+      const token = await getToken(messaging, {
+        vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!,
+        serviceWorkerRegistration: swReg,
+      })
+
       if (!token) { setLoading(false); return false }
 
+      // 4. Guardar en BD
       await fetch('/api/fcm/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -139,7 +158,6 @@ function usePushNotifications() {
       localStorage.setItem('fcm_token', token)
       setFcmToken(token)
       setSubscribed(true)
-      setPermission('granted')
       setLoading(false)
       return true
     } catch (e) {
