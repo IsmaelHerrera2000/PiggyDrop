@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "com.piggydrop.app",
+        "sha256_cert_fingerprints": ["1C:C4:04:12:A4:6A:53:87:F1:67:A4:62:E1:D9:DD:12:30:7C:6F:73:18:FF:45:32:1C:A8:5A:A2:3D:F6:3B:A5"]
+      }
+    }]
