@@ -3,7 +3,7 @@
 
 import { useState, useTransition, useEffect, useRef, useCallback } from 'react'
 import type { Goal, Deposit } from '@/types/database'
-import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, subscribePushAction, unsubscribePushAction, toggleGoalPublicAction, toggleGoalShowAmountsAction } from '@/app/dashboard/actions'
+import { createGoalAction, addDepositAction, deleteGoalAction, updateGoalAction, deleteDepositAction, toggleGoalPublicAction, toggleGoalShowAmountsAction } from '@/app/dashboard/actions'
 import ProgressChart from '@/components/goals/ProgressChart'
 import { detectLocale, getT } from '@/lib/i18n'
 import type { Locale } from '@/lib/i18n'
@@ -108,65 +108,42 @@ function periodStatus(goal: Goal): { saved: number; target: number; ok: boolean;
 }
 const monthlyStatus = periodStatus
 
-// ── Push notifications hook ───────────────────────────────────
-function urlBase64ToUint8Array(base64String: string): Uint8Array {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)))
-}
-
+// ── FCM Push notifications hook ──────────────────────────────
 function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [fcmToken, setFcmToken] = useState<string | null>(null)
 
   useEffect(() => {
     if (typeof Notification !== 'undefined') {
       setPermission(Notification.permission)
     }
-    // Check if already subscribed
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(reg => {
-        reg.pushManager.getSubscription().then(sub => {
-          setSubscribed(!!sub)
-        })
-      }).catch(() => {})
-    }
+    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('fcm_token') : null
+    if (stored) { setFcmToken(stored); setSubscribed(true) }
   }, [])
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true)
     try {
-      const perm = await Notification.requestPermission()
-      setPermission(perm)
-      if (perm !== 'granted') { setLoading(false); return false }
+      const { getFCMToken } = await import('@/lib/firebase')
+      const token = await getFCMToken()
+      if (!token) { setLoading(false); return false }
 
-      const reg = await navigator.serviceWorker.ready
-      const existing = await reg.pushManager.getSubscription()
-      if (existing) { setSubscribed(true); setLoading(false); return true }
-
-      const vapidKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-      if (!vapidKey) { console.error('Missing NEXT_PUBLIC_VAPID_PUBLIC_KEY'); setLoading(false); return false }
-
-      const sub = await reg.pushManager.subscribe({
-        userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidKey).buffer as ArrayBuffer,
+      await fetch('/api/fcm/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, locale: detectLocale(), platform: 'web' }),
       })
 
-      const json = sub.toJSON()
-      await subscribePushAction({
-        endpoint: sub.endpoint,
-        p256dh: json.keys?.p256dh ?? '',
-        auth: json.keys?.auth ?? '',
-        locale: detectLocale(),
-      })
-
+      localStorage.setItem('fcm_token', token)
+      setFcmToken(token)
       setSubscribed(true)
+      setPermission('granted')
       setLoading(false)
       return true
     } catch (e) {
-      console.error('Push subscribe error:', e)
+      console.error('FCM subscribe error:', e)
       setLoading(false)
       return false
     }
@@ -175,18 +152,21 @@ function usePushNotifications() {
   const unsubscribe = useCallback(async () => {
     setLoading(true)
     try {
-      const reg = await navigator.serviceWorker.ready
-      const sub = await reg.pushManager.getSubscription()
-      if (sub) {
-        await unsubscribePushAction(sub.endpoint)
-        await sub.unsubscribe()
+      if (fcmToken) {
+        await fetch('/api/fcm/subscribe', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: fcmToken }),
+        })
+        localStorage.removeItem('fcm_token')
       }
+      setFcmToken(null)
       setSubscribed(false)
     } catch (e) {
-      console.error('Push unsubscribe error:', e)
+      console.error('FCM unsubscribe error:', e)
     }
     setLoading(false)
-  }, [])
+  }, [fcmToken])
 
   return { permission, subscribed, loading, subscribe, unsubscribe }
 }
@@ -1016,10 +996,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   useEffect(() => {
     setMounted(true)
     setLocale(detectLocale())
-    // Registrar Firebase Messaging Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {})
-    }
   }, [])
   const t = getT(locale)
 
@@ -1074,7 +1050,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
   const handleCreateGoal = (goalData: Omit<Goal, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'deposits' | 'is_public' | 'public_show_amounts'> & { category: Category; monthly_target: number | null; savings_period: 'monthly' | 'weekly' | null; is_public?: boolean; public_show_amounts?: boolean; description: string | null; target_date: string | null }) => {
     startTransition(async () => {
-      const newGoal = await createGoalAction({ ...goalData, locale })
+      const newGoal = await createGoalAction(goalData)
       if (newGoal) {
         // El trigger de Supabase ya actualizó saved_amount — usamos goalData.saved_amount
         // para el depósito local optimista, y corregimos saved_amount en el estado local
