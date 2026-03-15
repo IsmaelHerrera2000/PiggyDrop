@@ -16,7 +16,9 @@ export function getFirebaseApp() {
   return initializeApp(firebaseConfig)
 }
 
-export async function getFCMToken(): Promise<string | null> {
+export async function getFCMToken(
+  swRegistration?: ServiceWorkerRegistration
+): Promise<string | null> {
   try {
     const supported = await isSupported()
     if (!supported) return null
@@ -29,6 +31,7 @@ export async function getFCMToken(): Promise<string | null> {
 
     const token = await getToken(messaging, {
       vapidKey: process.env.NEXT_PUBLIC_FIREBASE_VAPID_KEY!,
+      ...(swRegistration ? { serviceWorkerRegistration: swRegistration } : {}),
     })
 
     return token || null

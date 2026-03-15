@@ -15,9 +15,9 @@ async function getAdmin() {
   if (!admin.apps.length) {
     adminApp = admin.initializeApp({
       credential: admin.credential.cert({
-        projectId:    process.env.FIREBASE_PROJECT_ID!,
-        clientEmail:  process.env.FIREBASE_CLIENT_EMAIL!,
-        privateKey:   process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
+        projectId:   process.env.FIREBASE_PROJECT_ID!,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+        privateKey:  process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, '\n'),
       }),
     })
   } else {
@@ -26,11 +26,20 @@ async function getAdmin() {
   return adminApp
 }
 
-async function sendFCM(tokens: string[], title: string, body: string, data?: Record<string, string>) {
+async function sendFCM(
+  tokens: string[],
+  title: string,
+  body: string,
+  data?: Record<string, string>
+) {
   const admin = await import('firebase-admin')
   await getAdmin()
 
   if (tokens.length === 0) return { successCount: 0, failedTokens: [] }
+
+  const targetUrl = data?.url
+    ? `https://piggy-drop-fvof.vercel.app${data.url}`
+    : 'https://piggy-drop-fvof.vercel.app/dashboard'
 
   const response = await admin.messaging().sendEachForMulticast({
     tokens,
@@ -50,17 +59,18 @@ async function sendFCM(tokens: string[], title: string, body: string, data?: Rec
         badge: '/icons/icon-96x96.png',
         requireInteraction: false,
       },
-      fcmOptions: { link: 'https://piggy-drop-fvof.vercel.app/dashboard' },
+      fcmOptions: { link: targetUrl },
     },
     data: data ?? {},
   })
 
   const failedTokens: string[] = []
   response.responses.forEach((r, i) => {
-    if (!r.success && (
-      r.error?.code === 'messaging/registration-token-not-registered' ||
-      r.error?.code === 'messaging/invalid-registration-token'
-    )) {
+    if (
+      !r.success &&
+      (r.error?.code === 'messaging/registration-token-not-registered' ||
+        r.error?.code === 'messaging/invalid-registration-token')
+    ) {
       failedTokens.push(tokens[i])
     }
   })
@@ -68,7 +78,7 @@ async function sendFCM(tokens: string[], title: string, body: string, data?: Rec
   return { successCount: response.successCount, failedTokens }
 }
 
-// ── Helpers (same logic as old push/send) ────────────────────
+// ── Helpers ───────────────────────────────────────────────────
 function calcStreak(deposits: Deposit[]): number {
   if (!deposits || deposits.length === 0) return 0
   const days = new Set(deposits.map(d => d.created_at.slice(0, 10)))
@@ -84,28 +94,40 @@ function calcStreak(deposits: Deposit[]): number {
 
 function daysSinceLastDeposit(deposits: Deposit[]): number {
   if (!deposits || deposits.length === 0) return 999
-  const sorted = [...deposits].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-  return Math.floor((Date.now() - new Date(sorted[0].created_at).getTime()) / 86400000)
+  const sorted = [...deposits].sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+  )
+  return Math.floor(
+    (Date.now() - new Date(sorted[0].created_at).getTime()) / 86400000
+  )
 }
 
 function thisWeekSaved(deposits: Deposit[]): number {
   const now = new Date()
   const dayOfWeek = now.getDay() === 0 ? 6 : now.getDay() - 1
-  const weekStart = new Date(now); weekStart.setDate(now.getDate() - dayOfWeek); weekStart.setHours(0,0,0,0)
-  return deposits.filter(d => new Date(d.created_at) >= weekStart).reduce((s, d) => s + d.amount, 0)
+  const weekStart = new Date(now)
+  weekStart.setDate(now.getDate() - dayOfWeek)
+  weekStart.setHours(0, 0, 0, 0)
+  return deposits
+    .filter(d => new Date(d.created_at) >= weekStart)
+    .reduce((s, d) => s + d.amount, 0)
 }
 
 function thisMonthSaved(deposits: Deposit[]): number {
   const now = new Date()
-  return deposits.filter(d => {
-    const dd = new Date(d.created_at)
-    return dd.getFullYear() === now.getFullYear() && dd.getMonth() === now.getMonth()
-  }).reduce((s, d) => s + d.amount, 0)
+  return deposits
+    .filter(d => {
+      const dd = new Date(d.created_at)
+      return (
+        dd.getFullYear() === now.getFullYear() &&
+        dd.getMonth() === now.getMonth()
+      )
+    })
+    .reduce((s, d) => s + d.amount, 0)
 }
 
 // ── Main handler ──────────────────────────────────────────────
 export async function GET(req: NextRequest) {
-  // Auth: accept Vercel cron header or Bearer token
   const cronHeader = req.headers.get('x-vercel-cron')
   const authHeader = req.headers.get('authorization')
   if (!cronHeader && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
@@ -117,7 +139,6 @@ export async function GET(req: NextRequest) {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   )
 
-  // Load all FCM tokens
   const { data: tokenRows, error: tokErr } = await supabase
     .from('fcm_tokens')
     .select('user_id, token, locale')
@@ -126,7 +147,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: true, sent: 0, reason: 'no tokens' })
   }
 
-  // Load all goals with deposits for users that have tokens
   const userIds = [...new Set(tokenRows.map(t => t.user_id))]
   const { data: goals } = await supabase
     .from('goals')
@@ -136,7 +156,7 @@ export async function GET(req: NextRequest) {
   if (!goals) return NextResponse.json({ ok: true, sent: 0 })
 
   const now = new Date()
-  const dayOfWeek = now.getDay() // 0=sun, 1=mon...
+  const dayOfWeek = now.getDay()
   const isMonday   = dayOfWeek === 1
   const isThuOrFri = dayOfWeek === 4 || dayOfWeek === 5
 
@@ -146,7 +166,9 @@ export async function GET(req: NextRequest) {
   for (const tokenRow of tokenRows) {
     const { user_id, token, locale } = tokenRow
     const isEN = locale === 'en'
-    const userGoals = (goals as any[]).filter(g => g.user_id === user_id && g.saved_amount < g.target_price)
+    const userGoals = (goals as any[]).filter(
+      g => g.user_id === user_id && g.saved_amount < g.target_price
+    )
 
     if (userGoals.length === 0) continue
 
@@ -155,20 +177,20 @@ export async function GET(req: NextRequest) {
     for (const goal of userGoals) {
       const deposits: Deposit[] = goal.deposits ?? []
       const streak = calcStreak(deposits)
-      const days = daysSinceLastDeposit(deposits)
-      const pct = Math.round((goal.saved_amount / goal.target_price) * 100)
+      const days   = daysSinceLastDeposit(deposits)
+      const pct    = Math.round((goal.saved_amount / goal.target_price) * 100)
 
-      // 1. Inactivity (7+ days)
+      // 1. Inactividad 7+ días
       if (days >= 7) {
         notifications.push({
-          title: isEN ? `⏰ ${goal.name}` : `⏰ ${goal.name}`,
+          title: `⏰ ${goal.name}`,
           body: isEN
             ? `${days} days without saving! You're ${pct}% there.`
             : `¡${days} días sin ahorrar! Llevas un ${pct}% de tu meta.`,
         })
       }
 
-      // 2. Streak milestones
+      // 2. Hitos de racha
       const streakMilestones = [3, 7, 14, 21, 30, 60, 100]
       if (streakMilestones.includes(streak)) {
         notifications.push({
@@ -179,15 +201,17 @@ export async function GET(req: NextRequest) {
         })
       }
 
-      // 3. Weekly period alerts
+      // 3. Meta semanal
       if (goal.monthly_target && goal.savings_period === 'weekly') {
         const weekSaved = thisWeekSaved(deposits)
         if (isThuOrFri && weekSaved < goal.monthly_target) {
           notifications.push({
-            title: isEN ? `📅 Weekly goal: ${goal.name}` : `📅 Meta semanal: ${goal.name}`,
+            title: isEN
+              ? `📅 Weekly goal: ${goal.name}`
+              : `📅 Meta semanal: ${goal.name}`,
             body: isEN
               ? `${goal.currency}${weekSaved.toFixed(0)} of ${goal.currency}${goal.monthly_target} this week. ${dayOfWeek === 4 ? '2 days left!' : '1 day left!'}`
-              : `${goal.currency}${weekSaved.toFixed(0)} de ${goal.currency}${goal.monthly_target} esta semana. ¡${dayOfWeek === 4 ? 'Quedan 2 días!' : '¡Queda 1 día!'}`,
+              : `${goal.currency}${weekSaved.toFixed(0)} de ${goal.currency}${goal.monthly_target} esta semana. ${dayOfWeek === 4 ? '¡Quedan 2 días!' : '¡Queda 1 día!'}`,
           })
         }
         if (isMonday && weekSaved >= goal.monthly_target) {
@@ -200,15 +224,19 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // 4. Monthly period alerts
+      // 4. Meta mensual
       if (goal.monthly_target && goal.savings_period === 'monthly') {
         const monthSaved = thisMonthSaved(deposits)
-        const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()
+        const daysInMonth = new Date(
+          now.getFullYear(), now.getMonth() + 1, 0
+        ).getDate()
         const daysLeft = daysInMonth - now.getDate()
 
         if (daysLeft <= 5 && monthSaved < goal.monthly_target) {
           notifications.push({
-            title: isEN ? `📅 Monthly goal: ${goal.name}` : `📅 Meta mensual: ${goal.name}`,
+            title: isEN
+              ? `📅 Monthly goal: ${goal.name}`
+              : `📅 Meta mensual: ${goal.name}`,
             body: isEN
               ? `${goal.currency}${monthSaved.toFixed(0)} of ${goal.currency}${goal.monthly_target}. Only ${daysLeft} days left this month!`
               : `${goal.currency}${monthSaved.toFixed(0)} de ${goal.currency}${goal.monthly_target}. ¡Solo quedan ${daysLeft} días este mes!`,
@@ -217,20 +245,29 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Send max 1 notification per user per day (most relevant one)
+    // Máximo 1 notificación por usuario por día
     if (notifications.length > 0) {
       const notif = notifications[0]
-      const { successCount, failedTokens } = await sendFCM([token], notif.title, notif.body, { url: '/dashboard' })
+      const { successCount, failedTokens } = await sendFCM(
+        [token],
+        notif.title,
+        notif.body,
+        { url: '/dashboard' }
+      )
       totalSent += successCount
       allFailedTokens.push(...failedTokens)
     }
   }
 
-  // Clean up stale tokens
+  // Limpiar tokens caducados
   if (allFailedTokens.length > 0) {
     await supabase.from('fcm_tokens').delete().in('token', allFailedTokens)
     console.log(`Removed ${allFailedTokens.length} stale FCM tokens`)
   }
 
-  return NextResponse.json({ ok: true, sent: totalSent, staleRemoved: allFailedTokens.length })
+  return NextResponse.json({
+    ok: true,
+    sent: totalSent,
+    staleRemoved: allFailedTokens.length,
+  })
 }

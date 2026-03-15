@@ -75,13 +75,10 @@ function thisWeekSaved(goal: Goal): number {
 
 function calcStreak(goal: Goal): number {
   if (!goal.deposits || goal.deposits.length === 0) return 0
-  // Build set of unique deposit days (YYYY-MM-DD)
   const days = new Set(goal.deposits.map(d => d.created_at.slice(0, 10)))
   let streak = 0
   const today = new Date()
-  // Start from today and walk backwards; allow today OR yesterday as "current"
   let check = new Date(today)
-  // If no deposit today, start from yesterday (streak not broken yet today)
   if (!days.has(check.toISOString().slice(0, 10))) check.setDate(check.getDate() - 1)
   while (days.has(check.toISOString().slice(0, 10))) {
     streak++
@@ -109,8 +106,6 @@ function periodStatus(goal: Goal): { saved: number; target: number; ok: boolean;
 const monthlyStatus = periodStatus
 
 // ── FCM Push notifications hook ──────────────────────────────
-// Usa el SW de Firebase directamente para obtener el token FCM
-// sin conflicto con otros service workers
 function usePushNotifications() {
   const [permission, setPermission] = useState<NotificationPermission>('default')
   const [subscribed, setSubscribed] = useState(false)
@@ -121,23 +116,27 @@ function usePushNotifications() {
     if (typeof Notification !== 'undefined') {
       setPermission(Notification.permission)
     }
-    const stored = typeof localStorage !== 'undefined' ? localStorage.getItem('fcm_token') : null
+    const stored = typeof localStorage !== 'undefined'
+      ? localStorage.getItem('fcm_token')
+      : null
     if (stored) { setFcmToken(stored); setSubscribed(true) }
   }, [])
 
   const subscribe = useCallback(async (): Promise<boolean> => {
     setLoading(true)
     try {
-      // 1. Pedir permiso de notificaciones
+      // 1. Pedir permiso ANTES de tocar el SW
       const perm = await Notification.requestPermission()
       setPermission(perm)
       if (perm !== 'granted') { setLoading(false); return false }
 
-      // 2. Obtener el registration del SW de Firebase (ya registrado en useEffect)
-      const swReg = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
-        ?? await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+      // 2. Registrar el SW de Firebase y esperar a que esté completamente activo.
+      //    navigator.serviceWorker.ready resuelve con la registration activa,
+      //    garantizando que .active (y su .pushManager) no sea null.
+      await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
+      const swReg = await navigator.serviceWorker.ready
 
-      // 3. Obtener token FCM usando el SW ya registrado
+      // 3. Obtener token FCM pasando el SW activo
       const { getMessaging, getToken } = await import('firebase/messaging')
       const { getFirebaseApp } = await import('@/lib/firebase')
       const messaging = getMessaging(getFirebaseApp())
@@ -148,11 +147,15 @@ function usePushNotifications() {
 
       if (!token) { setLoading(false); return false }
 
-      // 4. Guardar en BD
+      // 4. Guardar token en BD
       await fetch('/api/fcm/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, locale: detectLocale(), platform: 'web' }),
+        body: JSON.stringify({
+          token,
+          locale: detectLocale(),
+          platform: 'web',
+        }),
       })
 
       localStorage.setItem('fcm_token', token)
@@ -262,8 +265,6 @@ function CircularProgress({ percentage, color, size = 120, strokeWidth = 10 }: {
     </svg>
   )
 }
-
-
 
 // ── Skeleton ─────────────────────────────────────────────────
 function SkeletonCard() {
@@ -406,7 +407,6 @@ function GoalCard({ goal, onClick, locale, pinned, onPin, hideAmounts, deleting 
       onMouseEnter={(e) => { if (!deleting) { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.borderColor = goal.color + '60'; e.currentTarget.style.boxShadow = `0 20px 40px ${goal.color}20` } }}
       onMouseLeave={(e) => { if (!deleting) { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.borderColor = pinned ? goal.color + '50' : 'rgba(255,255,255,0.08)'; e.currentTarget.style.boxShadow = pinned ? `0 0 24px ${goal.color}18` : 'none' } }}
     >
-      {/* Top-right badge cluster */}
       <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap', maxWidth: '60%', justifyContent: 'flex-end' }}>
         {streak >= 3 && <span style={{
           background: streak >= 7 ? 'rgba(255,107,53,0.18)' : 'rgba(255,160,50,0.13)',
@@ -425,8 +425,6 @@ function GoalCard({ goal, onClick, locale, pinned, onPin, hideAmounts, deleting 
           </button>
         )}
       </div>
-
-      {/* Category badge — shown inline above the name, not overlapping icon */}
 
       {showMonthlyWarn && (
         <div style={{ background: 'rgba(255,200,50,0.1)', border: '1px solid rgba(255,200,50,0.3)', borderRadius: '8px', padding: '6px 10px', marginBottom: '10px', fontSize: '11px', color: '#FFE066', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -554,7 +552,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           {t.editGoalTitle}
         </div>
 
-        {/* Categoría */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.categoryLabel}</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
@@ -564,7 +561,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           </div>
         </div>
 
-        {/* Emoji */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.emojiLabel}</label>
           <div style={{ display: 'flex', flexWrap: 'wrap' as const, gap: '8px' }}>
@@ -574,7 +570,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           </div>
         </div>
 
-        {/* Color */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.colorLabel}</label>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -584,7 +579,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           </div>
         </div>
 
-        {/* Nombre */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.nameLabel}</label>
           <input type="text" value={name}
@@ -596,7 +590,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           </div>
         </div>
 
-        {/* Precio */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>{t.targetPriceLabel}</label>
           <input type="text" inputMode="decimal" value={price}
@@ -610,7 +603,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           )}
         </div>
 
-        {/* Descripción */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {t.descriptionLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.descriptionHint}</span>
@@ -621,7 +613,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px', textAlign: 'right' }}>{description.length}/120</div>
         </div>
 
-        {/* Fecha objetivo */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {t.targetDateLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.targetDateHint}</span>
@@ -637,7 +628,6 @@ function EditGoalModal({ goal, onClose, onSave, isPending, locale }: {
           })()}
         </div>
 
-        {/* Objetivo de ahorro periódico */}
         <div style={{ marginBottom: '20px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {locale === 'en' ? 'SAVINGS TARGET' : 'OBJETIVO DE AHORRO'} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{locale === 'en' ? '(optional)' : '(opcional)'}</span>
@@ -851,7 +841,6 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
             <ErrorMsg msg={errors.initial || ''} />
           </div>
         </div>
-        {/* Descripción */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {t.descriptionLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.descriptionHint}</span>
@@ -861,8 +850,6 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
             style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '14px', outline: 'none', boxSizing: 'border-box' as const }}/>
           <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.2)', marginTop: '4px', textAlign: 'right' }}>{description.length}/120</div>
         </div>
-
-        {/* Fecha objetivo */}
         <div style={{ marginBottom: '16px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {t.targetDateLabel} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{t.targetDateHint}</span>
@@ -877,8 +864,6 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
             return needed > 0 ? <div style={{ fontSize: '11px', color: '#4ECDC4', marginTop: '6px' }}>💡 {t.needPerMonth(needed)}</div> : null
           })()}
         </div>
-
-        {/* Objetivo de ahorro periódico */}
         <div style={{ marginBottom: '16px', marginTop: '8px' }}>
           <label style={{ fontSize: '11px', fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: '1px', display: 'block', marginBottom: '8px' }}>
             {locale === 'en' ? 'SAVINGS TARGET' : 'OBJETIVO DE AHORRO'} <span style={{ color: 'rgba(255,255,255,0.25)', fontWeight: '400' }}>{locale === 'en' ? '(optional)' : '(opcional)'}</span>
@@ -901,7 +886,6 @@ function NewGoalModal({ onClose, onCreate, isPending, locale }: {
               style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '14px 16px', color: '#f0f0f5', fontSize: '15px', outline: 'none', boxSizing: 'border-box' as const }}/>
           )}
         </div>
-
         <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
           <button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.6)', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>{t.cancel}</button>
           <button onClick={handleSubmit} disabled={isPending} style={{ flex: 2, padding: '14px', borderRadius: '12px', background: `linear-gradient(135deg, ${color}, ${color}cc)`, border: 'none', color: '#fff', fontSize: '14px', fontFamily: "'Nunito', sans-serif", fontWeight: '800', cursor: 'pointer', opacity: isPending ? 0.7 : 1 }}>
@@ -1011,11 +995,13 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const { permission, subscribed, loading: pushLoading, subscribe: subscribePush, unsubscribe: unsubscribePush } = usePushNotifications()
   const [mounted, setMounted] = useState(false)
   const [locale, setLocale] = useState<Locale>('es')
+
   useEffect(() => {
     setMounted(true)
     setLocale(detectLocale())
     if ('serviceWorker' in navigator) {
-      // Desregistrar el SW antiguo (sw.js) si existe
+      // Limpiar SWs antiguos (sw.js) — no registrar firebase-messaging-sw.js aquí,
+      // lo gestiona el hook usePushNotifications cuando el usuario se suscribe
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(reg => {
           if (reg.active?.scriptURL?.includes('/sw.js')) {
@@ -1023,10 +1009,9 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           }
         })
       })
-      // Registrar el SW de Firebase
-      navigator.serviceWorker.register('/firebase-messaging-sw.js').catch(() => {})
     }
   }, [])
+
   const t = getT(locale)
 
   const totalSaved = goals.reduce((s, g) => s + g.saved_amount, 0)
@@ -1042,7 +1027,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     if (sort === 'pct') return (b.saved_amount / b.target_price) - (a.saved_amount / a.target_price)
     if (sort === 'name') return a.name.localeCompare(b.name)
     if (sort === 'amount') return b.saved_amount - a.saved_amount
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime() // recent
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   }).sort((a, b) => {
     const ap = pinnedGoals.has(a.id) ? 0 : 1
     const bp = pinnedGoals.has(b.id) ? 0 : 1
@@ -1082,8 +1067,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
     startTransition(async () => {
       const newGoal = await createGoalAction(goalData)
       if (newGoal) {
-        // El trigger de Supabase ya actualizó saved_amount — usamos goalData.saved_amount
-        // para el depósito local optimista, y corregimos saved_amount en el estado local
         const initialAmount = goalData.saved_amount
         const initialDeposit: Deposit | null = initialAmount > 0 ? {
           id: Date.now().toString(), goal_id: newGoal.id, user_id: userId,
@@ -1091,7 +1074,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         } : null
         setGoals((prev) => [{
           ...newGoal,
-          saved_amount: initialAmount, // corrige el 0 que devuelve el server
+          saved_amount: initialAmount,
           category: goalData.category,
           deposits: initialDeposit ? [initialDeposit] : [],
         }, ...prev])
@@ -1118,7 +1101,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         id: Date.now().toString(), goal_id: goalId, user_id: userId,
         amount, note, created_at: new Date().toISOString(),
       }
-      // Calculamos ANTES del setGoals para no depender del updater async
       const targetGoal = goals.find(g => g.id === goalId)
       const justCompleted = targetGoal
         ? (targetGoal.saved_amount + amount >= targetGoal.target_price && targetGoal.saved_amount < targetGoal.target_price)
@@ -1130,7 +1112,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         return { ...g, saved_amount: newSaved, deposits: [...(g.deposits ?? []), newDeposit] }
       }))
       if (justCompleted) setShowConfetti(true)
-      // Milestone confetti at 25/50/75%
       if (!justCompleted && targetGoal) {
         const prevPct = Math.floor((targetGoal.saved_amount / targetGoal.target_price) * 100)
         const newPct = Math.floor(((targetGoal.saved_amount + amount) / targetGoal.target_price) * 100)
@@ -1187,7 +1168,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
   const handleDelete = (goalId: string) => {
     if (!confirm(t.deleteGoalConfirm)) return
-    // Animate out first, then delete
     setDeletingGoals(prev => new Set(prev).add(goalId))
     setTimeout(() => {
       startTransition(async () => {
@@ -1217,39 +1197,32 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         ) : selectedGoal ? (
           <div style={{ animation: 'fadeUp 0.3s ease' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '24px' }}>
-              {/* ← Volver */}
               <button onClick={() => { setSelectedGoal(null); setShowDetailMenu(false) }}
                 style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {t.back}
               </button>
 
               <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px', alignItems: 'center', position: 'relative' }}>
-                {/* ✏️ Editar — siempre visible */}
                 <button onClick={() => { setShowEditGoal(true); setShowDetailMenu(false) }}
                   style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 14px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
                   {t.edit}
                 </button>
 
-                {/* ⋯ Menú de opciones adicionales */}
                 <button onClick={() => setShowDetailMenu(m => !m)}
                   style={{ background: showDetailMenu ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '16px', cursor: 'pointer', flexShrink: 0, lineHeight: 1 }}>
                   ···
                 </button>
 
-                {/* Dropdown backdrop + menu */}
                 {showDetailMenu && (
                   <>
                   <div onClick={() => setShowDetailMenu(false)} style={{ position: 'fixed', inset: 0, zIndex: 199 }}/>
                   <div onClick={e => e.stopPropagation()}
                     style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, background: '#1a1a25', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '16px', padding: '8px', zIndex: 200, minWidth: '220px', boxShadow: '0 16px 48px rgba(0,0,0,0.5)', animation: 'modalIn 0.15s ease' }}>
 
-                    {/* Compartir */}
                     <ShareButton goal={selectedGoal} t={t} menuStyle />
 
-                    {/* Separador */}
                     <div style={{ height: '1px', background: 'rgba(255,255,255,0.07)', margin: '6px 0' }}/>
 
-                    {/* Público/Privado */}
                     <button onClick={() => { handleTogglePublic(selectedGoal.id, !!selectedGoal.is_public); setShowDetailMenu(false) }} disabled={isPending}
                       style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: selectedGoal.is_public ? 'rgba(78,205,196,0.1)' : 'transparent', border: 'none', color: selectedGoal.is_public ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
                       <span>🌐</span>
@@ -1257,7 +1230,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                       {selectedGoal.is_public && <span style={{ fontSize: '10px', background: 'rgba(78,205,196,0.2)', color: '#4ECDC4', padding: '2px 6px', borderRadius: '6px' }}>{locale === 'en' ? 'PUBLIC' : 'PÚBLICA'}</span>}
                     </button>
 
-                    {/* Copiar enlace — solo si es pública */}
                     {selectedGoal.is_public && (
                       <button onClick={async () => { const url = `${window.location.origin}/goal/${selectedGoal.id}`; if (navigator.share) { await navigator.share({ title: selectedGoal.name, url }) } else { await navigator.clipboard.writeText(url) }; setShowDetailMenu(false) }}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: 'transparent', border: 'none', color: 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
@@ -1265,7 +1237,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                       </button>
                     )}
 
-                    {/* Mostrar/ocultar importes en página pública */}
                     {selectedGoal.is_public && (
                       <button onClick={() => { handleToggleShowAmounts(selectedGoal.id, !!selectedGoal.public_show_amounts); setShowDetailMenu(false) }} disabled={isPending}
                         style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', background: selectedGoal.public_show_amounts ? 'rgba(255,230,50,0.08)' : 'transparent', border: 'none', color: selectedGoal.public_show_amounts ? '#FFE066' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', textAlign: 'left' as const }}>
@@ -1278,7 +1249,7 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 )}
               </div>
             </div>
-            {/* ── Detail hero card ── */}
+
             {(() => {
               const g = selectedGoal
               const pct = Math.min(100, Math.round((g.saved_amount / g.target_price) * 100))
@@ -1292,10 +1263,8 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
               return (
                 <div style={{ background: `linear-gradient(145deg, ${g.color}18, ${g.color}06)`, border: `1px solid ${g.color}30`, borderRadius: '28px', padding: '28px', marginBottom: '16px', position: 'relative', overflow: 'hidden' }}>
-                  {/* bg glow */}
                   <div style={{ position: 'absolute', top: '-60px', right: '-60px', width: '200px', height: '200px', background: `radial-gradient(circle, ${g.color}20 0%, transparent 70%)`, pointerEvents: 'none' }}/>
 
-                  {/* Emoji + name */}
                   <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                     <div style={{ fontSize: '56px', marginBottom: '10px', filter: `drop-shadow(0 4px 16px ${g.color}60)`, animation: 'popIn 0.4s cubic-bezier(0.34,1.56,0.64,1)' }}>{g.emoji}</div>
                     <div style={{ fontFamily: "'Nunito', sans-serif", fontWeight: '900', fontSize: '26px', color: '#f0f0f5', marginBottom: '4px' }}>{g.name}</div>
@@ -1329,7 +1298,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     })()}
                   </div>
 
-                  {/* Circular progress */}
                   <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', position: 'relative' }}>
                     <CircularProgress percentage={pct} color={g.color} size={160} strokeWidth={14}/>
                     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -1338,7 +1306,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     </div>
                   </div>
 
-                  {/* Main amounts */}
                   <div style={{ display: 'flex', gap: '1px', background: 'rgba(255,255,255,0.06)', borderRadius: '16px', overflow: 'hidden', marginBottom: '16px' }}>
                     {[
                       { label: t.savedLabel, value: hideAmounts ? '••••' : `€${g.saved_amount.toLocaleString()}`, accent: g.color },
@@ -1352,7 +1319,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                     ))}
                   </div>
 
-                  {/* Stats grid */}
                   {deps.length > 0 && (
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
                       {[
@@ -1374,14 +1340,13 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 </div>
               )
             })()}
+
             {selectedGoal.saved_amount < selectedGoal.target_price && (
               <button onClick={() => setShowDeposit(true)} style={{
                 width: '100%', padding: '18px', borderRadius: '16px',
                 background: `linear-gradient(135deg, ${selectedGoal.color}, ${selectedGoal.color}bb)`,
                 border: 'none', color: '#fff', fontFamily: "'Nunito', sans-serif",
                 fontWeight: '800', fontSize: '16px', cursor: 'pointer', marginBottom: '12px',
-                '--btn-shadow': `${selectedGoal.color}50`,
-                '--btn-glow': `${selectedGoal.color}20`,
                 animation: 'pulse 2.5s ease-in-out infinite',
                 boxShadow: `0 12px 32px ${selectedGoal.color}40`,
               } as React.CSSProperties}>{t.addSaving}</button>
@@ -1391,14 +1356,12 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,80,80,0.08)'; e.currentTarget.style.borderColor = 'rgba(255,80,80,0.2)' }}
             >{t.deleteGoal}</button>
 
-            {/* Gráfico de progreso */}
             {selectedGoal.deposits && selectedGoal.deposits.length >= 1 && (
               <div style={{ marginBottom: '16px' }}>
                 <ProgressChart goal={selectedGoal} locale={locale}/>
               </div>
             )}
 
-            {/* Meta mensual en detalle */}
             {(() => {
               const ms = monthlyStatus(selectedGoal)
               if (!ms) return null
@@ -1427,12 +1390,11 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               )
             })()}
 
-            {/* Streak widget */}
             {(() => {
               const s = calcStreak(selectedGoal)
               if (s < 2) return null
               const isHot = s >= 7
-              const flames = Math.min(s, 14) // cap visual flames at 14
+              const flames = Math.min(s, 14)
               return (
                 <div style={{
                   background: isHot ? 'rgba(255,107,53,0.08)' : 'rgba(255,160,50,0.06)',
@@ -1461,7 +1423,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               )
             })()}
 
-            {/* Historial mejorado con barras relativas */}
             {selectedGoal.deposits && selectedGoal.deposits.length > 0 && (() => {
               const deps = [...selectedGoal.deposits].sort((a,b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
               const maxAmt = Math.max(...deps.map(d => d.amount))
@@ -1491,7 +1452,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                               style={{ width: '24px', height: '24px', borderRadius: '7px', background: 'rgba(255,80,80,0.1)', border: '1px solid rgba(255,80,80,0.2)', color: 'rgba(255,100,100,0.7)', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: isPending ? 0.5 : 1, flexShrink: 0 }}>×</button>
                           </div>
                         </div>
-                        {/* Relative bar */}
                         <div style={{ marginLeft: '42px', height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '100px', overflow: 'hidden' }}>
                           <div style={{ height: '100%', width: `${barPct}%`, background: `linear-gradient(90deg, ${selectedGoal.color}90, ${selectedGoal.color})`, borderRadius: '100px', transition: 'width 0.8s cubic-bezier(0.34,1.1,0.64,1)' }}/>
                         </div>
@@ -1504,14 +1464,12 @@ export default function GoalsDashboard({ initialGoals, userId }: {
           </div>
         ) : (
           <>
-            {/* ── Rich header banner ── */}
             <div style={{
               background: 'linear-gradient(135deg, rgba(255,107,53,0.12) 0%, rgba(255,143,171,0.08) 50%, rgba(167,139,250,0.06) 100%)',
               border: '1px solid rgba(255,107,53,0.2)',
               borderRadius: '28px', padding: '28px 28px 24px', marginBottom: '20px',
               position: 'relative', overflow: 'hidden',
             }}>
-              {/* Background glow orbs */}
               <div style={{ position: 'absolute', top: '-40px', right: '-40px', width: '160px', height: '160px', background: 'radial-gradient(circle, rgba(255,107,53,0.15) 0%, transparent 70%)', pointerEvents: 'none' }}/>
               <div style={{ position: 'absolute', bottom: '-30px', left: '20px', width: '100px', height: '100px', background: 'radial-gradient(circle, rgba(167,139,250,0.12) 0%, transparent 70%)', pointerEvents: 'none' }}/>
 
@@ -1544,7 +1502,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
                 </div>
               </div>
 
-              {/* Global progress bar */}
               {goals.length > 0 && (() => {
                 const globalPct = totalTarget > 0 ? Math.min(100, (totalSaved / totalTarget) * 100) : 0
                 return (
@@ -1597,7 +1554,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
               </div>
             )}
 
-            {/* Sort selector */}
             {filteredGoals.length > 1 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '16px' }}>
                 <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.35)', fontWeight: '600' }}>{t.sortLabel}</span>
@@ -1640,7 +1596,6 @@ export default function GoalsDashboard({ initialGoals, userId }: {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
               {!mounted ? (
-                // Skeleton loading
                 Array.from({ length: 3 }).map((_, i) => <SkeletonCard key={i} />)
               ) : filteredGoals.map((goal, idx) => (
                 <div key={goal.id} style={{ animation: `slideInCard 0.35s ease ${Math.min(idx, 6) * 0.06}s both` }}>

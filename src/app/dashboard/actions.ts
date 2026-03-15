@@ -49,17 +49,37 @@ export async function createGoalAction(goalData: {
 
   // 🔔 Notificación FCM — meta creada
   if (goal) {
-    const remaining = goalData.target_price - (goalData.saved_amount ?? 0)
-    const locale = goalData.locale ?? 'es'
-    const isEN = locale === 'en'
-    const title = isEN
-      ? `🎯 New goal created!`
-      : `🎯 ¡Nueva meta creada!`
-    const body = isEN
-      ? `"${goalData.name}" — ${goalData.currency ?? '€'}${remaining.toLocaleString('en')} to go. You got this! 💪`
-      : `"${goalData.name}" — Solo faltan ${goalData.currency ?? '€'}${remaining.toLocaleString('es-ES')} para poder comprarlo. ¡Tú puedes! 💪`
-    const { sendNotificationToUser } = await import('@/lib/fcm-server')
-    await sendNotificationToUser(user.id, title, body, { url: '/dashboard' })
+    try {
+      const remaining = goalData.target_price - (goalData.saved_amount ?? 0)
+      const locale = goalData.locale ?? 'es'
+      const isEN = locale === 'en'
+      const title = isEN ? `🎯 New goal created!` : `🎯 ¡Nueva meta creada!`
+      const body = isEN
+        ? `"${goalData.name}" — ${goalData.currency ?? '€'}${remaining.toLocaleString('en')} to go. You got this! 💪`
+        : `"${goalData.name}" — Solo faltan ${goalData.currency ?? '€'}${remaining.toLocaleString('es-ES')} para poder comprarlo. ¡Tú puedes! 💪`
+
+      // Buscar tokens FCM del usuario directamente aquí para debug
+      const { createClient: createServiceClient } = await import('@supabase/supabase-js')
+      const serviceSupabase = createServiceClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+      )
+      const { data: tokens, error: tokErr } = await serviceSupabase
+        .from('fcm_tokens')
+        .select('token')
+        .eq('user_id', user.id)
+      console.log('🔔 FCM tokens in DB:', tokens?.length ?? 0, tokErr?.message ?? '')
+
+      if (tokens && tokens.length > 0) {
+        const { sendNotificationToUser } = await import('@/lib/fcm-server')
+        await sendNotificationToUser(user.id, title, body, { url: '/dashboard' })
+        console.log('🔔 FCM notification sent OK')
+      } else {
+        console.log('🔔 No FCM tokens found for user — skipping notification')
+      }
+    } catch (e) {
+      console.error('🔔 FCM notification error:', e)
+    }
   }
 
   revalidatePath('/dashboard')
