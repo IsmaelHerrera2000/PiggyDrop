@@ -1004,12 +1004,10 @@ export default function GoalsDashboard({ initialGoals, userId }: {
   const [mounted, setMounted] = useState(false)
   const [locale, setLocale] = useState<Locale>('es')
 
-  useEffect(() => {
+useEffect(() => {
     setMounted(true)
     setLocale(detectLocale())
     if ('serviceWorker' in navigator) {
-      // Limpiar SWs antiguos (sw.js) — no registrar firebase-messaging-sw.js aquí,
-      // lo gestiona el hook usePushNotifications cuando el usuario se suscribe
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(reg => {
           if (reg.active?.scriptURL?.includes('/sw.js')) {
@@ -1018,6 +1016,44 @@ export default function GoalsDashboard({ initialGoals, userId }: {
         })
       })
     }
+
+    let unsubscribeForeground: (() => void) | undefined
+    const setupForeground = async () => {
+      try {
+        const { isSupported } = await import('firebase/messaging')
+        const supported = await isSupported()
+        if (!supported) return
+        if (Notification.permission !== 'granted') return
+
+        const { getMessaging, onMessage } = await import('firebase/messaging')
+        const { getFirebaseApp } = await import('@/lib/firebase')
+        const messaging = getMessaging(getFirebaseApp())
+
+        const unsub = onMessage(messaging, (payload) => {
+          const title = payload.notification?.title ?? 'PiggyDrop'
+          const body  = payload.notification?.body  ?? ''
+          const url   = (payload.data?.url as string) ?? '/dashboard'
+
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.ready.then(reg => {
+              reg.showNotification(title, {
+                body,
+                icon:     '/icons/icon-192x192.png',
+                badge:    '/icons/icon-96x96.png',
+                data:     { url },
+                tag:      'piggydrop-foreground',
+              })
+            })
+          }
+        })
+        unsubscribeForeground = unsub
+      } catch (e) {
+        console.error('FCM foreground setup error:', e)
+      }
+    }
+    setupForeground()
+
+    return () => { unsubscribeForeground?.() }
   }, [])
 
   const t = getT(locale)
