@@ -156,7 +156,7 @@ export async function GET(req: NextRequest) {
   if (!goals) return NextResponse.json({ ok: true, sent: 0 })
 
   const now = new Date()
-  const dayOfWeek = now.getDay()
+  const dayOfWeek  = now.getDay()
   const isMonday   = dayOfWeek === 1
   const isThuOrFri = dayOfWeek === 4 || dayOfWeek === 5
 
@@ -180,7 +180,7 @@ export async function GET(req: NextRequest) {
       const days   = daysSinceLastDeposit(deposits)
       const pct    = Math.round((goal.saved_amount / goal.target_price) * 100)
 
-      // 1. Inactividad 7+ días
+      // 1. Inactividad 7+ días — solo si hay depósitos previos (evita mostrar 999 días)
       if (days >= 7 && deposits.length > 0) {
         notifications.push({
           title: `⏰ ${goal.name}`,
@@ -245,14 +245,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Máximo 1 notificación por usuario por día
+    // Máximo 1 notificación por usuario por día (la más relevante)
     if (notifications.length > 0) {
       const notif = notifications[0]
       const { successCount, failedTokens } = await sendFCM(
-        [token],
-        notif.title,
-        notif.body,
-        { url: '/dashboard' }
+        [token], notif.title, notif.body, { url: '/dashboard' }
       )
       totalSent += successCount
       allFailedTokens.push(...failedTokens)
