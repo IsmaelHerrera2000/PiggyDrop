@@ -181,7 +181,7 @@ export async function GET(req: NextRequest) {
       const pct    = Math.round((goal.saved_amount / goal.target_price) * 100)
 
       // 1. Inactividad 7+ días
-      if (days >= 7) {
+      if (days >= 7 && deposits.length > 0) {
         notifications.push({
           title: `⏰ ${goal.name}`,
           body: isEN

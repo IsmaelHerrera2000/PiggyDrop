@@ -29,7 +29,7 @@ export async function createGoalAction(goalData: {
     emoji: goalData.emoji,
     color: goalData.color,
     target_price: goalData.target_price,
-    saved_amount: 0, // El trigger de Supabase recalcula al insertar el depósito inicial
+    saved_amount: 0,
     currency: goalData.currency,
     category: goalData.category,
     monthly_target: goalData.monthly_target ?? null,
@@ -47,7 +47,7 @@ export async function createGoalAction(goalData: {
     })
   }
 
-  // 🔔 Notificación FCM — meta creada
+  // Notificación FCM — meta creada
   if (goal) {
     try {
       const remaining = goalData.target_price - (goalData.saved_amount ?? 0)
@@ -58,27 +58,22 @@ export async function createGoalAction(goalData: {
         ? `"${goalData.name}" — ${goalData.currency ?? '€'}${remaining.toLocaleString('en')} to go. You got this! 💪`
         : `"${goalData.name}" — Solo faltan ${goalData.currency ?? '€'}${remaining.toLocaleString('es-ES')} para poder comprarlo. ¡Tú puedes! 💪`
 
-      // Buscar tokens FCM del usuario directamente aquí para debug
       const { createClient: createServiceClient } = await import('@supabase/supabase-js')
       const serviceSupabase = createServiceClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.SUPABASE_SERVICE_ROLE_KEY!
       )
-      const { data: tokens, error: tokErr } = await serviceSupabase
+      const { data: tokens } = await serviceSupabase
         .from('fcm_tokens')
         .select('token')
         .eq('user_id', user.id)
-      console.log('🔔 FCM tokens in DB:', tokens?.length ?? 0, tokErr?.message ?? '')
 
       if (tokens && tokens.length > 0) {
         const { sendNotificationToUser } = await import('@/lib/fcm-server')
         await sendNotificationToUser(user.id, title, body, { url: '/dashboard' })
-        console.log('🔔 FCM notification sent OK')
-      } else {
-        console.log('🔔 No FCM tokens found for user — skipping notification')
       }
     } catch (e) {
-      console.error('🔔 FCM notification error:', e)
+      console.error('FCM notification error (createGoal):', e)
     }
   }
 
@@ -113,8 +108,54 @@ export async function addDepositAction(
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return
 
+  // Obtener estado actual de la meta ANTES del depósito
+  const { data: goalBefore } = await supabase
+    .from('goals')
+    .select('saved_amount, target_price, name, emoji, currency')
+    .eq('id', goalId)
+    .single()
+
   await addDeposit({ goal_id: goalId, user_id: user.id, amount, note })
   revalidatePath('/dashboard')
+
+  // Notificación FCM — meta completada al 100%
+  if (goalBefore) {
+    const newSaved = goalBefore.saved_amount + amount
+    const wasComplete = goalBefore.saved_amount >= goalBefore.target_price
+    const isNowComplete = newSaved >= goalBefore.target_price
+
+    if (!wasComplete && isNowComplete) {
+      try {
+        const { createClient: createServiceClient } = await import('@supabase/supabase-js')
+        const serviceSupabase = createServiceClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        // Obtener locale del usuario
+        const { data: tokenRow } = await serviceSupabase
+          .from('fcm_tokens')
+          .select('locale')
+          .eq('user_id', user.id)
+          .limit(1)
+          .single()
+
+        const isEN = tokenRow?.locale === 'en'
+        const title = isEN
+          ? `🎉 Goal completed!`
+          : `🎉 ¡Meta completada!`
+        const body = isEN
+          ? `You saved ${goalBefore.currency}${goalBefore.target_price.toLocaleString('en')} for "${goalBefore.name}". Time to treat yourself! ${goalBefore.emoji}`
+          : `Has ahorrado ${goalBefore.currency}${goalBefore.target_price.toLocaleString('es-ES')} para "${goalBefore.name}". ¡Ha llegado el momento! ${goalBefore.emoji}`
+
+        const { sendNotificationToUser } = await import('@/lib/fcm-server')
+        await sendNotificationToUser(user.id, title, body, { url: '/dashboard' })
+        console.log('FCM goal completed notification sent')
+      } catch (e) {
+        console.error('FCM notification error (goalCompleted):', e)
+      }
+    }
+  }
 }
 
 export async function deleteDepositAction(
@@ -122,7 +163,6 @@ export async function deleteDepositAction(
   _amount: number,
   _goalId: string
 ): Promise<void> {
-  // El trigger de Supabase recalcula saved_amount automáticamente
   await deleteDeposit(depositId)
   revalidatePath('/dashboard')
 }
